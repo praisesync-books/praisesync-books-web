@@ -356,7 +356,7 @@ function tarjetaHTML(l, compacta) {
   return '<article class="tarjeta' + (agotado ? " tarjeta--agotada" : "") + (compacta ? " tarjeta--compacta" : "") + '">' +
     '<button type="button" class="tarjeta__foto" data-ver="' + l.id + '" aria-label="Ver detalles de ' + escapar(l.nombre) + '">' + fotoHTML(l, l.nombre) + (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</button>" +
     '<div class="tarjeta__cuerpo">' +
-      (!compacta && l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria + (l.subcategoria ? " › " + l.subcategoria : "")) + "</p>" : "") +
+      (!compacta && l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria) + "</p>" : "") +
       '<h3 class="tarjeta__titulo"><button type="button" class="enlace-titulo" data-ver="' + l.id + '">' + escapar(l.nombre) + "</button></h3>" +
       (l.autor ? '<p class="tarjeta__autor">' + escapar(l.autor) + "</p>" : "") +
       (!compacta && l.descripcion ? '<p class="tarjeta__descripcion">' + escapar(l.descripcion) + "</p>" +
