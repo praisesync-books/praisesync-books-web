@@ -155,3 +155,8 @@ label.boton { cursor: pointer; }
 .interruptor input { width: 20px; height: 20px; accent-color: var(--acento); }
 
 .aviso--error { background: var(--error); }
+
+.modal textarea[name=descripcion] { resize: vertical; min-height: 120px; line-height: 1.5; }
+#contador-descripcion { float: right; font-weight: 400; color: var(--suave); }
+.fila-libro__foto .foto-perezosa { display: block; width: 100%; height: 100%; }
+.fila-libro__foto .foto-perezosa img { width: 100%; height: 100%; object-fit: cover; }

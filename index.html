@@ -3,160 +3,120 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="noindex">
-  <title>Panel · PraiseSync Books Web</title>
+  <title>PraiseSync Books Web</title>
+  <meta name="description" content="Libros y Biblias. Haz tu pedido y lo coordinamos por WhatsApp.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../estilos.css">
-  <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="estilos.css">
 </head>
-<body class="panel">
-
-  <!-- Inicio de sesión -->
-  <section class="login" id="vista-login" hidden>
-    <form class="login__caja" id="form-login">
-      <span class="marca__icono login__icono" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2.5Z"/><path d="M12 7v6M9 10h6"/></svg>
-      </span>
-      <h1>Panel de la tienda</h1>
-      <p class="login__sub">PraiseSync Books Web</p>
-      <label class="campo"><span>Correo</span><input name="correo" type="email" required autocomplete="username"></label>
-      <label class="campo"><span>Contraseña</span><input name="clave" type="password" required autocomplete="current-password"></label>
-      <p class="error" id="error-login" hidden></p>
-      <button class="boton boton--acento" type="submit" id="boton-login">Entrar</button>
-      <a class="login__volver" href="../">← Ir a la tienda</a>
-    </form>
-  </section>
-
-  <!-- Panel -->
-  <div id="vista-panel" hidden>
-    <header class="encabezado">
-      <div class="contenedor encabezado__fila">
-        <a class="marca" href="../" target="_blank" rel="noopener" title="Ver la tienda">
-          <span class="marca__icono" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2.5Z"/><path d="M12 7v6M9 10h6"/></svg>
-          </span>
-          <span>Panel</span>
-        </a>
-        <div class="encabezado__acciones">
-          <span class="usuario" id="usuario"></span>
-          <button class="boton boton--contorno" id="salir" type="button">Salir</button>
-        </div>
-      </div>
-      <nav class="contenedor pestanas" aria-label="Secciones">
-        <a href="#resumen" data-pestana="resumen">Resumen</a>
-        <a href="#pedidos" data-pestana="pedidos">Pedidos <span class="globo" id="globo-pendientes" hidden></span></a>
-        <a href="#libros" data-pestana="libros">Libros</a>
-        <a href="#categorias" data-pestana="categorias">Categorías</a>
-      </nav>
-    </header>
-
-    <main class="contenedor seccion-panel">
-
-      <!-- RESUMEN -->
-      <section data-seccion="resumen" hidden>
-        <div class="titulo-fila"><h1>Resumen</h1>
-          <button class="boton boton--contorno" type="button" data-recargar>Actualizar</button></div>
-        <div class="metricas" id="metricas"></div>
-        <div class="dos-columnas">
-          <div class="bloque">
-            <h2>Ventas por mes</h2>
-            <div id="ventas-mes"></div>
-          </div>
-          <div class="bloque">
-            <h2>Más vendidos <small>(últimos 30 días)</small></h2>
-            <div id="mas-vendidos"></div>
-          </div>
-        </div>
-        <div class="bloque">
-          <h2>Stock bajo <small>(3 o menos)</small></h2>
-          <div id="stock-bajo"></div>
-        </div>
-      </section>
-
-      <!-- PEDIDOS -->
-      <section data-seccion="pedidos" hidden>
-        <div class="titulo-fila"><h1>Pedidos</h1>
-          <button class="boton boton--contorno" type="button" data-recargar>Actualizar</button></div>
-        <div class="categorias" id="filtro-pedidos"></div>
-        <div class="lista-pedidos" id="lista-pedidos"></div>
-      </section>
-
-      <!-- LIBROS -->
-      <section data-seccion="libros" hidden>
-        <div class="titulo-fila"><h1>Libros</h1>
-          <div class="botones">
-            <button class="boton boton--contorno" type="button" id="importar">Importar CSV</button>
-            <button class="boton boton--acento" type="button" id="nuevo-libro">+ Nuevo libro</button>
-          </div>
-        </div>
-        <input type="file" id="archivo-csv" accept=".csv,text/csv" hidden>
-        <label class="buscador">
-          <span class="visualmente-oculto">Buscar libros</span>
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <input id="buscar-libros" type="search" placeholder="Buscar por título, autor o categoría" autocomplete="off">
-        </label>
-        <p class="estado" id="estado-libros"></p>
-        <div class="tabla-libros" id="tabla-libros"></div>
-      </section>
-
-      <!-- CATEGORÍAS -->
-      <section data-seccion="categorias" hidden>
-        <div class="titulo-fila"><h1>Categorías</h1></div>
-        <form class="fila-nueva" id="form-categoria">
-          <label class="campo"><span class="visualmente-oculto">Nueva categoría</span>
-            <input name="nombre" placeholder="Nueva categoría, ej: Devocionales" required maxlength="40"></label>
-          <button class="boton boton--acento" type="submit">Agregar</button>
-        </form>
-        <ul class="lista-categorias" id="lista-categorias"></ul>
-        <p class="ayuda ayuda--izq">El orden de esta lista es el orden de los botones de categoría en la tienda.</p>
-      </section>
-    </main>
-  </div>
-
-  <!-- Editor de libro -->
-  <dialog class="modal" id="modal-libro" aria-labelledby="titulo-modal-libro">
-    <form id="form-libro" method="dialog">
-      <div class="cajon__cabecera">
-        <h2 id="titulo-modal-libro">Nuevo libro</h2>
-        <button class="icono-boton" type="button" data-cerrar aria-label="Cerrar">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+<body>
+  <header class="encabezado">
+    <div class="contenedor encabezado__fila">
+      <a class="marca" href="./">
+        <span class="marca__icono" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2.5Z"/><path d="M12 7v6M9 10h6"/></svg>
+        </span>
+        <span id="nombre-tienda">PraiseSync Books Web</span>
+      </a>
+      <div class="encabezado__acciones">
+        <a class="boton boton--contorno boton--solo-escritorio" id="whatsapp-general" href="#" target="_blank" rel="noopener">Escríbenos</a>
+        <button class="boton boton--acento" id="abrir-pedido" type="button" aria-label="Ver mi pedido">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+          <span>Mi pedido</span>
+          <span class="contador" id="contador" hidden>0</span>
         </button>
       </div>
-      <div class="modal__cuerpo">
-        <div class="editor-foto">
-          <div class="editor-foto__vista" id="vista-foto"></div>
-          <div class="editor-foto__botones">
-            <label class="boton boton--contorno">Elegir foto<input type="file" id="input-foto" accept="image/*" hidden></label>
-            <button class="boton boton--texto" type="button" id="quitar-foto">Quitar foto</button>
-            <p class="ayuda ayuda--izq">Se reduce automáticamente. Mejor si es vertical.</p>
-          </div>
-        </div>
-        <label class="campo"><span>Nombre *</span><input name="nombre" required maxlength="120"></label>
-        <label class="campo"><span>Autor</span><input name="autor" maxlength="80"></label>
-        <label class="campo"><span>Categoría</span>
-          <select name="categoria" id="select-categoria"></select></label>
-        <div class="dos-campos">
-          <label class="campo"><span>Precio (COP) *</span><input name="precio" required inputmode="numeric" placeholder="85000"></label>
-          <label class="campo"><span>Stock *</span><input name="stock" required type="number" min="0" step="1" value="0"></label>
-        </div>
-        <label class="campo"><span>Descripción <small id="contador-descripcion">0 / 3000</small></span><textarea name="descripcion" rows="5" maxlength="3000"></textarea></label>
-        <label class="interruptor"><input type="checkbox" name="activo" checked> <span>Visible en la tienda</span></label>
-        <p class="error" id="error-libro" hidden></p>
+    </div>
+  </header>
+
+  <main>
+    <section class="portada">
+      <div class="contenedor">
+        <h1>Libros y Biblias</h1>
+        <p>Agrega los libros a tu pedido y envíalo por WhatsApp. Coordinamos el pago y la entrega directamente contigo.</p>
       </div>
-      <div class="modal__pie">
-        <button class="boton boton--peligro" type="button" id="borrar-libro" hidden>Eliminar</button>
-        <span class="espaciador"></span>
-        <button class="boton boton--contorno" type="button" data-cerrar>Cancelar</button>
-        <button class="boton boton--acento" type="submit" id="guardar-libro">Guardar</button>
+    </section>
+
+    <section class="contenedor">
+      <div class="controles">
+        <label class="buscador">
+          <span class="visualmente-oculto">Buscar</span>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="buscar" type="search" placeholder="Buscar por título, autor o categoría" autocomplete="off">
+        </label>
+        <div class="categorias" id="categorias" aria-label="Categorías"></div>
       </div>
-    </form>
+
+      <p class="estado" id="estado" aria-live="polite">Cargando catálogo…</p>
+      <div class="grilla" id="grilla"></div>
+    </section>
+  </main>
+
+  <footer class="pie">
+    <div class="contenedor">
+      <!-- Aquí irán las políticas de compra (entregas, envíos, formas de pago) cuando estén definidas. -->
+      <p>© <span id="anio"></span> PraiseSync Books Web · Pedidos por WhatsApp</p>
+    </div>
+  </footer>
+
+  <!-- Pedido (carrito) -->
+  <dialog class="cajon" id="cajon" aria-labelledby="cajon-titulo">
+    <div class="cajon__cabecera">
+      <h2 id="cajon-titulo">Mi pedido</h2>
+      <button class="icono-boton" type="button" data-cerrar aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="cajon__cuerpo" id="vista-carrito">
+      <ul class="lista-pedido" id="lista-pedido"></ul>
+      <p class="estado" id="pedido-vacio">Todavía no has agregado libros.</p>
+
+      <form id="form-pedido" class="form-pedido" hidden>
+        <div class="total-fila"><span>Total</span><strong id="total-pedido">$0</strong></div>
+        <label class="campo">
+          <span>Tu nombre</span>
+          <input name="nombre" required maxlength="80" autocomplete="name">
+        </label>
+        <label class="campo">
+          <span>Tu teléfono (WhatsApp)</span>
+          <input name="telefono" required maxlength="20" inputmode="tel" autocomplete="tel" pattern="[0-9 +()-]{7,20}">
+        </label>
+        <label class="campo">
+          <span>Notas <small>(opcional: barrio, dirección, cómo prefieres pagar)</small></span>
+          <textarea name="notas" rows="2" maxlength="300"></textarea>
+        </label>
+        <p class="error" id="error-pedido" hidden></p>
+        <button class="boton boton--whatsapp" type="submit" id="enviar-pedido">Continuar a WhatsApp</button>
+        <p class="ayuda">Guardamos tu pedido y luego lo envías por WhatsApp para coordinar el pago y la entrega.</p>
+      </form>
+    </div>
+
+    <div class="cajon__cuerpo" id="vista-confirmacion" hidden>
+      <div class="confirmacion">
+        <div class="confirmacion__icono" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>
+        </div>
+        <h3>Pedido <span id="codigo-pedido"></span> registrado</h3>
+        <p>Último paso: envíanos el pedido por WhatsApp para confirmar el pago y la entrega.</p>
+        <a class="boton boton--whatsapp" id="link-whatsapp" href="#" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+        <button class="boton boton--contorno" type="button" data-cerrar>Seguir viendo libros</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Ficha del libro -->
+  <dialog class="detalle" id="detalle" aria-label="Detalles del libro">
+    <button class="icono-boton detalle__cerrar" type="button" data-cerrar aria-label="Cerrar">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <div class="detalle__contenido" id="detalle-contenido"></div>
   </dialog>
 
   <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
 
-  <script src="../config.js"></script>
-  <script type="module" src="admin.js"></script>
+  <script src="config.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 import { db, configurado } from "./firebase.js";
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, doc, query, where, getDoc, getDocs, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { formatoPrecio, sinTildes, escapar, enlaceWhatsApp, codigoPedido, portadaVaciaHTML } from "./util.js";
 
 var T = window.TIENDA;
@@ -68,6 +68,46 @@ function avisar(texto) {
   avisar.t = setTimeout(function () { a.classList.remove("aviso--visible"); }, 2200);
 }
 
+// ---------- Fotos: se cargan solo cuando el libro aparece en pantalla ----------
+var fotos = {}, pidiendoFoto = {};
+function cargarFoto(id) {
+  var l = libroPorId(id);
+  if (l && l.imagen) return Promise.resolve(l.imagen);           // formato anterior
+  if (!l || !l.foto) return Promise.resolve("");
+  if (fotos[id] !== undefined) return Promise.resolve(fotos[id]);
+  if (!pidiendoFoto[id]) {
+    pidiendoFoto[id] = getDoc(doc(db, "portadas", id)).then(function (s) {
+      fotos[id] = s.exists() ? (s.data().imagen || "") : "";
+      delete pidiendoFoto[id];
+      return fotos[id];
+    }).catch(function () { delete pidiendoFoto[id]; return ""; });
+  }
+  return pidiendoFoto[id];
+}
+function fotoHTML(l, alt) {
+  var url = l.imagen || fotos[l.id];
+  if (url) return '<img src="' + escapar(url) + '" alt="' + escapar(alt || "") + '">';
+  if (l.foto) return '<span class="foto-perezosa" data-portada="' + l.id + '" data-alt="' + escapar(alt || "") + '">' + portadaVaciaHTML(l.nombre) + "</span>";
+  return portadaVaciaHTML(l.nombre);
+}
+function ponerFoto(el) {
+  cargarFoto(el.dataset.portada).then(function (url) {
+    if (url) el.innerHTML = '<img src="' + escapar(url) + '" alt="' + escapar(el.dataset.alt || "") + '">';
+  });
+}
+var observadorFotos = "IntersectionObserver" in window ? new IntersectionObserver(function (entradas) {
+  entradas.forEach(function (en) {
+    if (!en.isIntersecting) return;
+    observadorFotos.unobserve(en.target);
+    ponerFoto(en.target);
+  });
+}, { rootMargin: "400px" }) : null;
+function observarFotos(contenedor) {
+  contenedor.querySelectorAll("[data-portada]").forEach(function (el) {
+    if (observadorFotos) observadorFotos.observe(el); else ponerFoto(el);
+  });
+}
+
 // ---------- Pintar catálogo ----------
 function pintarContador() {
   var n = cantidadTotal();
@@ -113,7 +153,7 @@ function pintarDetalle() {
   if (!l) return;
   var agotado = l.stock <= 0;
   $("detalle-contenido").innerHTML =
-    '<div class="detalle__foto">' + (l.imagen ? '<img src="' + escapar(l.imagen) + '" alt="' + escapar(l.nombre) + '">' : portadaVaciaHTML(l.nombre)) +
+    '<div class="detalle__foto">' + fotoHTML(l, l.nombre) +
       (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</div>" +
     '<div class="detalle__info">' +
       (l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria) + "</p>" : "") +
@@ -121,9 +161,18 @@ function pintarDetalle() {
       (l.autor ? '<p class="tarjeta__autor">' + escapar(l.autor) + "</p>" : "") +
       '<p class="detalle__precio">' + formatoPrecio(l.precio) +
         (!agotado && l.stock <= 3 ? ' <span class="tarjeta__stock">Quedan ' + l.stock + "</span>" : "") + "</p>" +
-      (l.descripcion ? '<p class="detalle__descripcion">' + escapar(l.descripcion) + "</p>" : "") +
+      (l.descripcion ? '<p class="detalle__descripcion">' + escapar(l.descripcionCompleta || l.descripcion) + "</p>" : "") +
       '<div class="detalle__accion">' + accionHTML(l, true) + "</div>" +
     "</div>";
+  observarFotos($("detalle-contenido"));
+  // Si la descripción es larga, se trae completa solo al abrir la ficha.
+  if (l.larga && !l.descripcionCompleta && !l.pidiendoDescripcion) {
+    l.pidiendoDescripcion = true;
+    getDoc(doc(db, "libros", l.id)).then(function (s) {
+      if (s.exists()) l.descripcionCompleta = s.data().descripcion || l.descripcion;
+      if (libroEnDetalle === l.id && $detalle.open) pintarDetalle();
+    }).catch(function () {}).finally(function () { l.pidiendoDescripcion = false; });
+  }
 }
 function abrirDetalle(id) {
   libroEnDetalle = id;
@@ -153,9 +202,7 @@ function pintarLibros() {
   $grilla.innerHTML = visibles.map(function (l) {
     var agotado = l.stock <= 0;
     var enPedido = carrito[l.id] || 0;
-    var foto = l.imagen
-      ? '<img src="' + escapar(l.imagen) + '" alt="' + escapar(l.nombre) + '" loading="lazy">'
-      : portadaVaciaHTML(l.nombre);
+    var foto = fotoHTML(l, l.nombre);
     var stockTexto = (!agotado && l.stock <= 3) ? '<span class="tarjeta__stock">Quedan ' + l.stock + "</span>" : "";
     var accion = accionHTML(l, false);
 
@@ -171,6 +218,7 @@ function pintarLibros() {
         accion +
       "</div></article>";
   }).join("");
+  observarFotos($grilla);
 }
 
 $grilla.addEventListener("click", function (e) {
@@ -195,7 +243,7 @@ function pintarCarrito() {
   $("lista-pedido").innerHTML = items.map(function (it) {
     var l = it.libro;
     return '<li class="item-pedido">' +
-      '<div class="item-pedido__foto">' + (l.imagen ? '<img src="' + escapar(l.imagen) + '" alt="">' : "") + "</div>" +
+      '<div class="item-pedido__foto">' + ((l.imagen || fotos[l.id]) ? '<img src="' + escapar(l.imagen || fotos[l.id]) + '" alt="">' : "") + "</div>" +
       '<div class="item-pedido__info"><strong>' + escapar(l.nombre) + "</strong>" +
         (l.autor ? "<span>" + escapar(l.autor) + "</span>" : "") +
         "<span>" + formatoPrecio(l.precio) + " c/u</span></div>" +
@@ -277,27 +325,62 @@ function mostrarConfirmacion(codigo, items, total, cliente) {
 }
 
 // ---------- Cargar catálogo ----------
+// Se lee un solo documento (tienda/catalogo) que el panel mantiene al día.
+// Se recuerda unos minutos en el navegador para no gastar lecturas si el cliente vuelve a entrar.
+var CLAVE_CACHE = "psb-catalogo", MINUTOS_CACHE = 3;
+
+function leerCache() {
+  try {
+    var c = JSON.parse(localStorage.getItem(CLAVE_CACHE) || "null");
+    if (c && Date.now() - c.t < MINUTOS_CACHE * 60000) return c.datos;
+  } catch (e) {}
+  return null;
+}
+function guardarCache(datos) {
+  try { localStorage.setItem(CLAVE_CACHE, JSON.stringify({ t: Date.now(), datos: datos })); } catch (e) {}
+}
+
+function normalizar(x, id) {
+  return {
+    id: id || x.id, nombre: x.nombre || "", autor: x.autor || "", categoria: x.categoria || "",
+    precio: typeof x.precio === "number" ? x.precio : null,
+    stock: typeof x.stock === "number" ? x.stock : 0,
+    descripcion: x.resumen !== undefined ? x.resumen : (x.descripcion || ""),
+    larga: !!x.larga, foto: x.foto || 0, imagen: x.imagen || ""
+  };
+}
+
+function traerCatalogo() {
+  var enCache = leerCache();
+  if (enCache) return Promise.resolve(enCache);
+  return getDoc(doc(db, "tienda", "catalogo")).then(function (s) {
+    if (s.exists()) {
+      var d = s.data();
+      var datos = { libros: (d.libros || []).map(function (x) { return normalizar(x); }), categorias: d.categorias || [] };
+      guardarCache(datos);
+      return datos;
+    }
+    // Respaldo: si el catálogo aún no se ha publicado, se leen los libros uno por uno.
+    return Promise.all([
+      getDocs(query(collection(db, "libros"), where("activo", "==", true))),
+      getDocs(collection(db, "categorias")).catch(function () { return null; })
+    ]).then(function (res) {
+      return {
+        libros: res[0].docs.map(function (d) { return normalizar(d.data(), d.id); }),
+        categorias: res[1] ? res[1].docs.map(function (d) { return d.data(); })
+          .sort(function (a, b) { return (a.orden || 0) - (b.orden || 0); })
+          .map(function (c) { return c.nombre; }) : []
+      };
+    });
+  });
+}
+
 if (!configurado) {
   $estado.textContent = "La tienda se está configurando. Vuelve pronto.";
 } else {
-  Promise.all([
-    getDocs(query(collection(db, "libros"), where("activo", "==", true))),
-    getDocs(collection(db, "categorias")).catch(function () { return null; })
-  ]).then(function (res) {
-    libros = res[0].docs.map(function (d) {
-      var x = d.data();
-      return {
-        id: d.id, nombre: x.nombre || "", autor: x.autor || "", categoria: x.categoria || "",
-        precio: typeof x.precio === "number" ? x.precio : null,
-        stock: typeof x.stock === "number" ? x.stock : 0,
-        descripcion: x.descripcion || "", imagen: x.imagen || ""
-      };
-    }).sort(function (a, b) { return a.nombre.localeCompare(b.nombre, "es"); });
-    if (res[1]) {
-      ordenCategorias = res[1].docs.map(function (d) { return d.data(); })
-        .sort(function (a, b) { return (a.orden || 0) - (b.orden || 0) || String(a.nombre).localeCompare(b.nombre, "es"); })
-        .map(function (c) { return c.nombre; });
-    }
+  traerCatalogo().then(function (datos) {
+    libros = datos.libros.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre, "es"); });
+    ordenCategorias = datos.categorias || [];
     limpiarCarrito();
     pintarContador();
     pintarCategorias();

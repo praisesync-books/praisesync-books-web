@@ -40,6 +40,18 @@ service cloud.firestore {
       allow write: if esAdmin();
     }
 
+    // Catálogo resumido que lee la tienda (1 lectura por visita). Lo publica el panel.
+    match /tienda/{id} {
+      allow read: if true;
+      allow write: if esAdmin();
+    }
+
+    // Fotos de los libros, separadas para que se carguen solo cuando se ven.
+    match /portadas/{id} {
+      allow read: if true;
+      allow write: if esAdmin();
+    }
+
     // Pedidos: cualquiera puede crear uno desde la tienda; solo administración los ve y los cambia.
     match /pedidos/{id} {
       allow create: if esAdmin() || pedidoValido();

@@ -141,7 +141,7 @@
           <label class="campo"><span>Precio (COP) *</span><input name="precio" required inputmode="numeric" placeholder="85000"></label>
           <label class="campo"><span>Stock *</span><input name="stock" required type="number" min="0" step="1" value="0"></label>
         </div>
-        <label class="campo"><span>Descripción</span><textarea name="descripcion" rows="3" maxlength="600"></textarea></label>
+        <label class="campo"><span>Descripción <small id="contador-descripcion">0 / 3000</small></span><textarea name="descripcion" rows="5" maxlength="3000"></textarea></label>
         <label class="interruptor"><input type="checkbox" name="activo" checked> <span>Visible en la tienda</span></label>
         <p class="error" id="error-libro" hidden></p>
       </div>

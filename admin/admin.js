@@ -1,7 +1,8 @@
 import { app, db, configurado } from "../firebase.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  collection, doc, getDocs, addDoc, updateDoc, deleteDoc, writeBatch, runTransaction, serverTimestamp
+  collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, runTransaction,
+  serverTimestamp, deleteField, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { formatoPrecio, aNumero, sinTildes, escapar, enlaceWhatsApp, codigoPedido, leerCSV, portadaVaciaHTML } from "../util.js";
 
@@ -106,25 +107,138 @@ function cargarCategorias() {
       .sort(function (a, b) { return (a.orden || 0) - (b.orden || 0) || String(a.nombre).localeCompare(b.nombre, "es"); });
   });
 }
+// Solo se cargan los pedidos de los últimos ~6 meses, para no gastar lecturas.
 function cargarPedidos() {
-  return getDocs(collection(db, "pedidos")).then(function (s) {
+  var desde = new Date();
+  desde.setMonth(desde.getMonth() - 6, 1);
+  desde.setHours(0, 0, 0, 0);
+  return getDocs(query(collection(db, "pedidos"), where("creado", ">=", desde))).then(function (s) {
     pedidos = s.docs.map(function (d) { var x = d.data(); x.id = d.id; return x; })
       .sort(function (a, b) { return ((fecha(b.creado) || 0) - (fecha(a.creado) || 0)); });
   });
 }
 function cargarTodo() {
   // Pedidos primero: solo una cuenta administradora puede leerlos.
-  return cargarPedidos().then(function () { return Promise.all([cargarLibros(), cargarCategorias()]); });
+  return cargarPedidos()
+    .then(function () { return Promise.all([cargarLibros(), cargarCategorias()]); })
+    .then(migrarFotos)
+    .then(revisarCatalogo);
 }
 
+// "Actualizar" solo vuelve a leer los pedidos (los libros ya están al día en este panel).
 document.addEventListener("click", function (e) {
   var b = e.target.closest("[data-recargar]");
   if (!b) return;
   b.disabled = true;
-  cargarTodo().then(function () { pintarTodo(); avisar("Actualizado"); })
+  cargarPedidos().then(function () { pintarTodo(); avisar("Actualizado"); })
     .catch(function (err) { avisar(mensajeError(err), true); })
     .finally(function () { b.disabled = false; });
 });
+
+// ---------- Catálogo publicado ----------
+// La tienda lee un solo documento (tienda/catalogo) con el resumen de todos los libros visibles:
+// 1 lectura por visita en vez de una por libro. Se vuelve a publicar después de cada cambio.
+var LARGO_RESUMEN = 240;
+function resumenDe(texto) {
+  texto = String(texto || "");
+  if (texto.length <= LARGO_RESUMEN) return texto;
+  var corte = texto.slice(0, LARGO_RESUMEN);
+  var espacio = corte.lastIndexOf(" ");
+  return (espacio > 160 ? corte.slice(0, espacio) : corte).replace(/[\s.,;:]+$/, "") + "…";
+}
+function armarCatalogo() {
+  return {
+    libros: libros.filter(function (l) { return l.activo !== false; }).map(function (l) {
+      var d = String(l.descripcion || "");
+      return {
+        id: l.id, nombre: l.nombre || "", autor: l.autor || "", categoria: l.categoria || "",
+        precio: typeof l.precio === "number" ? l.precio : 0, stock: l.stock || 0,
+        resumen: resumenDe(d), larga: d.length > LARGO_RESUMEN, foto: l.foto || 0
+      };
+    }),
+    categorias: categorias.map(function (c) { return c.nombre; }),
+    actualizado: serverTimestamp()
+  };
+}
+var publicando = Promise.resolve(), temporizadorPublicar = null;
+function publicarCatalogo() {
+  clearTimeout(temporizadorPublicar);
+  publicando = publicando.catch(function () {}).then(function () {
+    return setDoc(doc(db, "tienda", "catalogo"), armarCatalogo());
+  });
+  publicando.catch(function (err) { avisar("No se pudo actualizar la tienda: " + mensajeError(err), true); });
+  return publicando;
+}
+// Para cambios seguidos (como tocar + varias veces), publica una sola vez al final.
+function programarPublicacion() {
+  clearTimeout(temporizadorPublicar);
+  temporizadorPublicar = setTimeout(publicarCatalogo, 1200);
+}
+window.addEventListener("beforeunload", function (e) {
+  if (temporizadorPublicar) { publicarCatalogo(); }
+});
+function revisarCatalogo() {
+  return getDoc(doc(db, "tienda", "catalogo")).then(function (s) {
+    if (!s.exists()) return publicarCatalogo();
+  });
+}
+
+// Las fotos viven en portadas/{idLibro}; el panel y la tienda las cargan solo cuando se ven.
+var fotos = {};          // id -> dataURL ya cargada
+var pidiendoFoto = {};   // id -> promesa en curso
+function cargarFoto(id) {
+  if (fotos[id] !== undefined) return Promise.resolve(fotos[id]);
+  if (!pidiendoFoto[id]) {
+    pidiendoFoto[id] = getDoc(doc(db, "portadas", id)).then(function (s) {
+      fotos[id] = s.exists() ? (s.data().imagen || "") : "";
+      delete pidiendoFoto[id];
+      return fotos[id];
+    }).catch(function () { delete pidiendoFoto[id]; return ""; });
+  }
+  return pidiendoFoto[id];
+}
+var observadorFotos = "IntersectionObserver" in window ? new IntersectionObserver(function (entradas) {
+  entradas.forEach(function (en) {
+    if (!en.isIntersecting) return;
+    observadorFotos.unobserve(en.target);
+    ponerFoto(en.target);
+  });
+}, { rootMargin: "300px" }) : null;
+function ponerFoto(el) {
+  var id = el.dataset.portada;
+  cargarFoto(id).then(function (url) {
+    if (url) el.innerHTML = '<img src="' + url + '" alt="">';
+  });
+}
+function observarFotos(contenedor) {
+  contenedor.querySelectorAll("[data-portada]").forEach(function (el) {
+    if (fotos[el.dataset.portada]) { el.innerHTML = '<img src="' + fotos[el.dataset.portada] + '" alt="">'; return; }
+    if (observadorFotos) observadorFotos.observe(el); else ponerFoto(el);
+  });
+}
+
+// Pasa las fotos que estaban guardadas dentro del libro (versión anterior) a portadas/.
+function migrarFotos() {
+  var conFoto = libros.filter(function (l) { return typeof l.imagen === "string" && l.imagen; });
+  var sinCampo = libros.filter(function (l) { return l.imagen === ""; });
+  if (!conFoto.length && !sinCampo.length) return Promise.resolve();
+  var cadena = Promise.resolve();
+  conFoto.forEach(function (l) {
+    cadena = cadena.then(function () {
+      var version = Date.now();
+      var b = writeBatch(db);
+      b.set(doc(db, "portadas", l.id), { imagen: l.imagen });
+      b.update(doc(db, "libros", l.id), { imagen: deleteField(), foto: version });
+      return b.commit().then(function () { fotos[l.id] = l.imagen; delete l.imagen; l.foto = version; });
+    });
+  });
+  if (sinCampo.length) cadena = cadena.then(function () {
+    var b = writeBatch(db);
+    sinCampo.forEach(function (l) { b.update(doc(db, "libros", l.id), { imagen: deleteField() }); delete l.imagen; });
+    return b.commit();
+  });
+  return cadena.then(publicarCatalogo);
+}
 
 // ---------- Pestañas ----------
 var PESTANAS = ["resumen", "pedidos", "libros", "categorias"];
@@ -292,9 +406,13 @@ $("lista-pedidos").addEventListener("click", function (e) {
   if (b) {
     if (b.dataset.estado === "cancelado" && !confirm("¿Cancelar este pedido?" + "\n\nSi ya estaba pagado, el stock se devuelve.")) return;
     b.disabled = true;
+    var pedido = pedidos.find(function (x) { return x.id === b.dataset.pedido; });
     cambiarEstado(b.dataset.pedido, b.dataset.estado)
       .then(function (aviso) {
-        return Promise.all([cargarPedidos(), cargarLibros()]).then(function () {
+        var ids = [];
+        if (aviso) ((pedido && pedido.items) || []).forEach(function (it) { if (it.id && ids.indexOf(it.id) === -1) ids.push(it.id); });
+        return Promise.all([cargarPedidos(), refrescarLibros(ids)]).then(function () {
+          if (ids.length) publicarCatalogo();
           pintarTodo();
           avisar(aviso || "Pedido actualizado");
         });
@@ -309,6 +427,18 @@ $("lista-pedidos").addEventListener("click", function (e) {
       .catch(function (err) { avisar(mensajeError(err), true); });
   }
 });
+
+// Vuelve a leer solo algunos libros (por ejemplo, los de un pedido al que cambió el stock).
+function refrescarLibros(ids) {
+  return Promise.all(ids.map(function (id) {
+    return getDoc(doc(db, "libros", id)).then(function (s) {
+      var i = libros.findIndex(function (l) { return l.id === id; });
+      if (!s.exists()) { if (i !== -1) libros.splice(i, 1); return; }
+      var x = s.data(); x.id = id;
+      if (i === -1) libros.push(x); else libros[i] = x;
+    });
+  }));
+}
 
 // El stock se descuenta cuando el pedido pasa a Pagado o Entregado,
 // y se devuelve si vuelve a Pendiente o se cancela.
@@ -374,7 +504,7 @@ function pintarLibros() {
     var stock = l.stock || 0;
     return '<div class="fila-libro' + (l.activo === false ? " fila-libro--oculta" : "") + '">' +
       '<button type="button" class="fila-libro__foto" data-editar="' + l.id + '" aria-label="Editar ' + escapar(l.nombre) + '">' +
-        (l.imagen ? '<img src="' + escapar(l.imagen) + '" alt="">' : portadaVaciaHTML("")) + "</button>" +
+        (l.foto ? '<span class="foto-perezosa" data-portada="' + l.id + '">' + portadaVaciaHTML("") + "</span>" : portadaVaciaHTML("")) + "</button>" +
       '<button type="button" class="fila-libro__info" data-editar="' + l.id + '">' +
         "<strong>" + escapar(l.nombre) + "</strong>" +
         "<span>" + escapar([l.autor, l.categoria].filter(Boolean).join(" · ")) + "</span>" +
@@ -390,6 +520,7 @@ function pintarLibros() {
       "</div>" +
     "</div>";
   }).join("");
+  observarFotos($("tabla-libros"));
 }
 
 $("buscar-libros").addEventListener("input", pintarLibros);
@@ -403,7 +534,7 @@ function guardarStock(id, valor) {
   l.stock = valor;
   pintarLibros();
   updateDoc(doc(db, "libros", id), { stock: valor, actualizado: serverTimestamp() })
-    .then(function () { avisar("Stock de " + l.nombre + ": " + valor); })
+    .then(function () { avisar("Stock de " + l.nombre + ": " + valor); programarPublicacion(); })
     .catch(function (err) { l.stock = anterior; pintarLibros(); avisar(mensajeError(err), true); });
 }
 
@@ -449,10 +580,17 @@ function pintarFoto() {
   $("quitar-foto").hidden = !fotoEditando;
 }
 
+var fotoOriginal = "";
 function abrirEditor(id) {
   var l = id ? libros.find(function (x) { return x.id === id; }) : null;
   libroEditando = l ? l.id : null;
-  fotoEditando = (l && l.imagen) || "";
+  fotoEditando = fotoOriginal = "";
+  if (l && l.foto) {
+    if (fotos[l.id] !== undefined) fotoEditando = fotoOriginal = fotos[l.id];
+    else cargarFoto(l.id).then(function (url) {
+      if (libroEditando === l.id && fotoEditando === fotoOriginal) { fotoEditando = fotoOriginal = url; pintarFoto(); }
+    });
+  }
   $form.reset();
   $("titulo-modal-libro").textContent = l ? "Editar libro" : "Nuevo libro";
   $form.nombre.value = l ? l.nombre || "" : "";
@@ -466,9 +604,19 @@ function abrirEditor(id) {
   $("error-libro").hidden = true;
   pintarFoto();
   $modal.showModal();
+  ajustarDescripcion();
 }
 
 $("nuevo-libro").addEventListener("click", function () { abrirEditor(null); });
+
+// La descripción crece mientras se escribe y muestra cuántos caracteres lleva.
+function ajustarDescripcion() {
+  var t = $form.descripcion;
+  t.style.height = "auto";
+  t.style.height = Math.min(t.scrollHeight + 2, 420) + "px";
+  $("contador-descripcion").textContent = t.value.length + " / 3000";
+}
+$form.descripcion.addEventListener("input", ajustarDescripcion);
 $modal.addEventListener("click", function (e) {
   if (e.target.closest("[data-cerrar]") || e.target === $modal) $modal.close();
 });
@@ -523,19 +671,33 @@ $form.addEventListener("submit", function (e) {
     stock: Math.max(0, parseInt($form.stock.value, 10) || 0),
     descripcion: $form.descripcion.value.trim(),
     activo: $form.activo.checked,
-    imagen: fotoEditando,
     actualizado: serverTimestamp()
   };
+  var cambioFoto = fotoEditando !== fotoOriginal;
   if (!datos.nombre) { $err.hidden = false; $err.textContent = "El nombre es obligatorio."; return; }
   if (precio === null) { $err.hidden = false; $err.textContent = "Escribe el precio, solo números. Ej: 85000"; return; }
   $err.hidden = true; $btn.disabled = true; $btn.textContent = "Guardando…";
-  var op = libroEditando
-    ? updateDoc(doc(db, "libros", libroEditando), datos)
-    : addDoc(collection(db, "libros"), Object.assign({ creado: serverTimestamp() }, datos));
-  op.then(cargarLibros).then(function () {
+  var ref = libroEditando ? doc(db, "libros", libroEditando) : doc(collection(db, "libros"));
+  var id = ref.id, esNuevo = !libroEditando;
+  var local = libros.find(function (x) { return x.id === id; });
+  datos.foto = cambioFoto ? (fotoEditando ? Date.now() : 0) : ((local && local.foto) || 0);
+  var b = writeBatch(db);
+  if (esNuevo) b.set(ref, Object.assign({ creado: serverTimestamp() }, datos));
+  else b.update(ref, datos);
+  if (cambioFoto) {
+    if (fotoEditando) b.set(doc(db, "portadas", id), { imagen: fotoEditando });
+    else b.delete(doc(db, "portadas", id));
+  }
+  b.commit().then(function () {
+    var copia = Object.assign({}, datos, { id: id });
+    delete copia.actualizado;
+    if (local) Object.assign(local, copia); else libros.push(copia);
+    libros.sort(function (a, c) { return String(a.nombre).localeCompare(c.nombre, "es"); });
+    if (cambioFoto) fotos[id] = fotoEditando;
     $modal.close();
     pintarTodo();
-    avisar(libroEditando ? "Libro actualizado" : "Libro creado");
+    avisar(esNuevo ? "Libro creado" : "Libro actualizado");
+    publicarCatalogo();
   }).catch(function (err) {
     $err.hidden = false; $err.textContent = mensajeError(err);
   }).finally(function () { $btn.disabled = false; $btn.textContent = "Guardar"; });
@@ -545,8 +707,15 @@ $("borrar-libro").addEventListener("click", function () {
   if (!libroEditando) return;
   var l = libros.find(function (x) { return x.id === libroEditando; });
   if (!confirm("¿Eliminar \"" + (l ? l.nombre : "") + "\"? Esto no se puede deshacer.\n\nSi solo quieres esconderlo, desmarca \"Visible en la tienda\".")) return;
-  deleteDoc(doc(db, "libros", libroEditando)).then(cargarLibros).then(function () {
+  var id = libroEditando;
+  var b = writeBatch(db);
+  b.delete(doc(db, "libros", id));
+  b.delete(doc(db, "portadas", id));
+  b.commit().then(function () {
+    libros = libros.filter(function (x) { return x.id !== id; });
+    delete fotos[id];
     $modal.close(); pintarTodo(); avisar("Libro eliminado");
+    publicarCatalogo();
   }).catch(function (err) { avisar(mensajeError(err), true); });
 });
 
@@ -573,7 +742,7 @@ $("archivo-csv").addEventListener("change", function (e) {
       var id = existentes[sinTildes(f.nombre + "|" + (f.autor || ""))];
       if (id) { actualizados++; return { id: id, datos: datos }; }
       nuevos++;
-      return { id: null, datos: Object.assign({ activo: true, imagen: "", creado: serverTimestamp() }, datos) };
+      return { id: null, datos: Object.assign({ activo: true, foto: 0, creado: serverTimestamp() }, datos) };
     });
     var msg = "Se van a importar " + filas.length + " libros:\n• " + nuevos + " nuevos\n• " + actualizados +
       " ya existían (se actualizan precio, stock y datos; la foto se conserva)\n\n¿Continuar?";
@@ -588,17 +757,25 @@ $("archivo-csv").addEventListener("change", function (e) {
         var b = writeBatch(db);
         lote.forEach(function (op) {
           if (op.id) b.update(doc(db, "libros", op.id), op.datos);
-          else b.set(doc(collection(db, "libros")), op.datos);
+          else { var r = doc(collection(db, "libros")); op.id = r.id; op.nuevo = true; b.set(r, op.datos); }
         });
         return b.commit();
       });
     });
     var faltan = Object.keys(cats).filter(function (n) { return !categorias.some(function (c) { return c.nombre === n; }); });
     cadena.then(function () { return faltan.reduce(function (p, n) { return p.then(function () { return crearCategoria(n); }); }, Promise.resolve()); })
-      .then(cargarLibros).then(function () {
+      .then(function () {
+        operaciones.forEach(function (op) {
+          var copia = Object.assign({}, op.datos, { id: op.id });
+          delete copia.actualizado; delete copia.creado;
+          var local = libros.find(function (x) { return x.id === op.id; });
+          if (local) Object.assign(local, copia); else libros.push(copia);
+        });
+        libros.sort(function (a, c) { return String(a.nombre).localeCompare(c.nombre, "es"); });
         pintarTodo();
         avisar(nuevos + " creados, " + actualizados + " actualizados");
-      }).catch(function (err) { cargarLibros().then(pintarTodo); avisar(mensajeError(err), true); });
+        return publicarCatalogo();
+      }).catch(function (err) { cargarLibros().then(function () { pintarTodo(); publicarCatalogo(); }); avisar(mensajeError(err), true); });
   });
 });
 
@@ -606,7 +783,7 @@ $("archivo-csv").addEventListener("change", function (e) {
 function crearCategoria(nombre) {
   if (categorias.some(function (c) { return sinTildes(c.nombre) === sinTildes(nombre); })) return Promise.resolve();
   var orden = categorias.reduce(function (m, c) { return Math.max(m, c.orden || 0); }, 0) + 1;
-  return addDoc(collection(db, "categorias"), { nombre: nombre, orden: orden }).then(cargarCategorias);
+  return addDoc(collection(db, "categorias"), { nombre: nombre, orden: orden }).then(cargarCategorias).then(programarPublicacion);
 }
 
 function pintarCategorias() {
@@ -645,7 +822,7 @@ $("lista-categorias").addEventListener("click", function (e) {
     var t = copia[i]; copia[i] = copia[j]; copia[j] = t;
     var b = writeBatch(db);
     copia.forEach(function (c, k) { b.update(doc(db, "categorias", c.id), { orden: k + 1 }); });
-    b.commit().then(cargarCategorias).then(pintarCategorias).catch(function (err) { avisar(mensajeError(err), true); });
+    b.commit().then(cargarCategorias).then(function () { pintarCategorias(); publicarCatalogo(); }).catch(function (err) { avisar(mensajeError(err), true); });
     return;
   }
   var rn = e.target.closest("[data-renombrar]");
@@ -657,8 +834,11 @@ $("lista-categorias").addEventListener("click", function (e) {
     lote.update(doc(db, "categorias", c.id), { nombre: nuevo });
     libros.filter(function (l) { return l.categoria === c.nombre; })
       .forEach(function (l) { lote.update(doc(db, "libros", l.id), { categoria: nuevo }); });
-    lote.commit().then(function () { return Promise.all([cargarCategorias(), cargarLibros()]); })
-      .then(function () { pintarCategorias(); avisar("Categoría renombrada"); })
+    lote.commit().then(function () {
+        libros.forEach(function (l) { if (l.categoria === c.nombre) l.categoria = nuevo; });
+        return cargarCategorias();
+      })
+      .then(function () { pintarCategorias(); avisar("Categoría renombrada"); publicarCatalogo(); })
       .catch(function (err) { avisar(mensajeError(err), true); });
     return;
   }
@@ -673,8 +853,11 @@ $("lista-categorias").addEventListener("click", function (e) {
     var lote2 = writeBatch(db);
     lote2.delete(doc(db, "categorias", cat.id));
     usados.forEach(function (l) { lote2.update(doc(db, "libros", l.id), { categoria: "" }); });
-    lote2.commit().then(function () { return Promise.all([cargarCategorias(), cargarLibros()]); })
-      .then(function () { pintarCategorias(); avisar("Categoría eliminada"); })
+    lote2.commit().then(function () {
+        usados.forEach(function (l) { l.categoria = ""; });
+        return cargarCategorias();
+      })
+      .then(function () { pintarCategorias(); avisar("Categoría eliminada"); publicarCatalogo(); })
       .catch(function (err) { avisar(mensajeError(err), true); });
   }
 });
