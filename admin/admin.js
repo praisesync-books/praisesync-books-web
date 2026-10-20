@@ -10,6 +10,7 @@ var auth = getAuth(app);
 var $ = function (id) { return document.getElementById(id); };
 
 var libros = [], categorias = [], pedidos = [];
+var ajustes = { destacados: true, vendidos: true, novedades: true, categorias: {} };
 var filtroPedidos = "pendiente";
 var libroEditando = null;   // id o null
 var fotoEditando = "";      // dataURL
@@ -120,10 +121,16 @@ function cargarPedidos() {
       .sort(function (a, b) { return ((fecha(b.creado) || 0) - (fecha(a.creado) || 0)); });
   });
 }
+function cargarAjustes() {
+  return getDoc(doc(db, "tienda", "ajustes")).then(function (s) {
+    var a = s.exists() ? (s.data().secciones || {}) : {};
+    ajustes = { destacados: a.destacados !== false, vendidos: a.vendidos !== false, novedades: a.novedades !== false, categorias: a.categorias || {} };
+  });
+}
 function cargarTodo() {
   // Pedidos primero: solo una cuenta administradora puede leerlos.
   return cargarPedidos()
-    .then(function () { return Promise.all([cargarLibros(), cargarCategorias()]); })
+    .then(function () { return Promise.all([cargarLibros(), cargarCategorias(), cargarAjustes()]); })
     .then(migrarFotos)
     .then(revisarCatalogo);
 }
@@ -163,6 +170,8 @@ function armarCatalogo() {
       };
     }),
     categorias: categorias.map(function (c) { return c.nombre; }),
+    vendidos: calcularVendidos(),
+    secciones: ajustes,
     subcategorias: categorias.reduce(function (m, c) { if (subsDe(c).length) m[c.nombre] = subsDe(c); return m; }, {}),
     actualizado: serverTimestamp()
   };
@@ -187,7 +196,28 @@ window.addEventListener("beforeunload", function (e) {
 function revisarCatalogo() {
   return getDoc(doc(db, "tienda", "catalogo")).then(function (s) {
     if (!s.exists()) return publicarCatalogo();
+    // El ranking de "Más vendidos" cambia con el tiempo (ventana de 90 días): se actualiza al entrar.
+    var d = s.data();
+    if (JSON.stringify(d.vendidos || {}) !== JSON.stringify(calcularVendidos()) || !d.secciones) return publicarCatalogo();
   });
+}
+
+// Unidades vendidas por libro en los últimos 90 días (pedidos pagados o entregados). Solo los 12 primeros.
+var DIAS_VENDIDOS = 90;
+function calcularVendidos() {
+  var desde = Date.now() - DIAS_VENDIDOS * 864e5;
+  var c = {};
+  pedidos.forEach(function (p) {
+    if (p.estado !== "pagado" && p.estado !== "entregado") return;
+    var f = fecha(p.pagadoEn) || fecha(p.creado);
+    if (!f || f.getTime() < desde) return;
+    (p.items || []).forEach(function (it) { if (it.id) c[it.id] = (c[it.id] || 0) + (it.cantidad || 0); });
+  });
+  var top = Object.keys(c).filter(function (id) { return libros.some(function (l) { return l.id === id && l.activo !== false; }); })
+    .sort(function (a, b) { return c[b] - c[a]; }).slice(0, 12);
+  var r = {};
+  top.forEach(function (id) { r[id] = c[id]; });
+  return r;
 }
 
 // Las fotos viven en portadas/{idLibro}; el panel y la tienda las cargan solo cuando se ven.
@@ -248,7 +278,7 @@ function migrarFotos() {
 }
 
 // ---------- Pestañas ----------
-var PESTANAS = ["resumen", "pedidos", "libros", "categorias"];
+var PESTANAS = ["resumen", "pedidos", "libros", "categorias", "inicio"];
 function pestanaActual() {
   var h = location.hash.replace("#", "");
   return PESTANAS.indexOf(h) !== -1 ? h : "resumen";
@@ -273,6 +303,7 @@ function pintarTodo() {
   if (p === "pedidos") pintarPedidos();
   if (p === "libros") pintarLibros();
   if (p === "categorias") pintarCategorias();
+  if (p === "inicio") pintarInicio();
 }
 
 // ---------- Resumen ----------
@@ -993,6 +1024,11 @@ $("lista-categorias").addEventListener("click", function (e) {
       .forEach(function (l) { lote.update(doc(db, "libros", l.id), { categoria: nuevo }); });
     lote.commit().then(function () {
         libros.forEach(function (l) { if (l.categoria === c.nombre) l.categoria = nuevo; });
+        if (ajustes.categorias[c.nombre] !== undefined) {
+          ajustes.categorias[nuevo] = ajustes.categorias[c.nombre];
+          delete ajustes.categorias[c.nombre];
+          setDoc(doc(db, "tienda", "ajustes"), { secciones: ajustes }).catch(function () {});
+        }
         return cargarCategorias();
       })
       .then(function () { pintarCategorias(); avisar("Categoría renombrada"); publicarCatalogo(); })
@@ -1017,4 +1053,40 @@ $("lista-categorias").addEventListener("click", function (e) {
       .then(function () { pintarCategorias(); avisar("Categoría eliminada"); publicarCatalogo(); })
       .catch(function (err) { avisar(mensajeError(err), true); });
   }
+});
+
+
+// ---------- Página principal: qué carruseles se muestran ----------
+function interruptorHTML(clave, titulo, detalle, activo) {
+  return '<label class="interruptor-fila">' +
+    '<span class="interruptor-fila__texto"><strong>' + escapar(titulo) + "</strong><small>" + escapar(detalle) + "</small></span>" +
+    '<input type="checkbox" class="switch" data-ajuste="' + escapar(clave) + '"' + (activo ? " checked" : "") + ">" +
+    "</label>";
+}
+function pintarInicio() {
+  var visibles = libros.filter(function (l) { return l.activo !== false; });
+  var nDest = visibles.filter(function (l) { return l.destacado; }).length;
+  var nVend = Object.keys(calcularVendidos()).length;
+  var nNov = visibles.filter(function (l) { return l.creado || l.creadoMs; }).length;
+  $("interruptores-especiales").innerHTML =
+    interruptorHTML("destacados", "⭐ Destacados", nDest ? nDest + " libro(s) marcados como destacados" : "Aún no hay libros marcados. Márcalos al editar cada libro.", ajustes.destacados) +
+    interruptorHTML("vendidos", "🔥 Más vendidos", nVend >= 3 ? nVend + " libro(s) con ventas en los últimos " + DIAS_VENDIDOS + " días"
+      : "Aparece cuando haya al menos 3 libros vendidos (pedidos pagados o entregados, últimos " + DIAS_VENDIDOS + " días). Hoy: " + nVend + ".", ajustes.vendidos) +
+    interruptorHTML("novedades", "🆕 Novedades", nNov >= 4 ? "Los últimos libros que cargaste" : "Aparece cuando haya al menos 4 libros creados con esta versión del panel. Hoy: " + nNov + ".", ajustes.novedades);
+  $("interruptores-categorias").innerHTML = categorias.length ? categorias.map(function (c) {
+    var n = visibles.filter(function (l) { return l.categoria === c.nombre; }).length;
+    return interruptorHTML("cat:" + c.nombre, c.nombre, n >= 2 ? n + " libros" : "Necesita al menos 2 libros visibles (hoy: " + n + ")", ajustes.categorias[c.nombre] !== false);
+  }).join("") : '<p class="estado">Todavía no hay categorías.</p>';
+}
+function guardarAjustes() {
+  return setDoc(doc(db, "tienda", "ajustes"), { secciones: ajustes }).then(publicarCatalogo);
+}
+document.addEventListener("change", function (e) {
+  var i = e.target.closest("[data-ajuste]");
+  if (!i) return;
+  var clave = i.dataset.ajuste, anterior = JSON.stringify(ajustes);
+  if (clave.indexOf("cat:") === 0) ajustes.categorias[clave.slice(4)] = i.checked;
+  else ajustes[clave] = i.checked;
+  guardarAjustes().then(function () { avisar(i.checked ? "Carrusel activado" : "Carrusel ocultado"); })
+    .catch(function (err) { ajustes = JSON.parse(anterior); pintarInicio(); avisar(mensajeError(err), true); });
 });

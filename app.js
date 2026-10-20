@@ -8,6 +8,8 @@ var ordenCategorias = []; // nombres en el orden definido en el panel
 var categoriaActiva = "Todas";
 var subcategoriaActiva = "";
 var subsPorCategoria = {};  // { categoría: [subcategorías en orden] }
+var vendidos = {};          // { idLibro: unidades vendidas (90 días) }
+var ajustesSecciones = {};  // qué carruseles mostrar (lo decide el panel)
 var carrito = cargarCarrito(); // { idLibro: cantidad }
 
 var $ = function (id) { return document.getElementById(id); };
@@ -280,17 +282,23 @@ var seccionesPintadas = false;
 function disponiblesPrimero(lista) {
   return lista.slice().sort(function (a, b) { return (a.stock <= 0) - (b.stock <= 0); });
 }
+function activa(clave) { return ajustesSecciones[clave] !== false; }
 function armarSecciones() {
   var s = [];
   var destacados = disponiblesPrimero(libros.filter(function (l) { return l.destacado; }));
-  if (destacados.length) s.push({ titulo: "Destacados", libros: destacados });
+  if (activa("destacados") && destacados.length) s.push({ titulo: "Destacados", libros: destacados });
+  var masVendidos = libros.filter(function (l) { return vendidos[l.id]; })
+    .sort(function (a, b) { return vendidos[b.id] - vendidos[a.id]; });
+  if (activa("vendidos") && masVendidos.length >= 3) s.push({ titulo: "Más vendidos", libros: disponiblesPrimero(masVendidos) });
   var conFecha = libros.filter(function (l) { return l.creado; });
-  if (libros.length >= 6 && conFecha.length >= 4) {
+  if (activa("novedades") && conFecha.length >= 4) {
     s.push({ titulo: "Novedades", libros: conFecha.slice().sort(function (a, b) { return b.creado - a.creado; }) });
   }
   var cats = ordenCategorias.slice();
   libros.forEach(function (l) { if (l.categoria && cats.indexOf(l.categoria) === -1) cats.push(l.categoria); });
+  var porCat = (ajustesSecciones.categorias || {});
   cats.forEach(function (c) {
+    if (porCat[c] === false) return;
     var deCat = disponiblesPrimero(libros.filter(function (l) { return l.categoria === c; }));
     if (deCat.length >= 2) s.push({ titulo: c, categoria: c, libros: deCat });
   });
@@ -483,7 +491,8 @@ function traerCatalogo() {
   return getDoc(doc(db, "tienda", "catalogo")).then(function (s) {
     if (s.exists()) {
       var d = s.data();
-      var datos = { libros: (d.libros || []).map(function (x) { return normalizar(x); }), categorias: d.categorias || [], subcategorias: d.subcategorias || {} };
+      var datos = { libros: (d.libros || []).map(function (x) { return normalizar(x); }), categorias: d.categorias || [], subcategorias: d.subcategorias || {},
+        vendidos: d.vendidos || {}, secciones: d.secciones || {} };
       guardarCache(datos);
       return datos;
     }
@@ -509,6 +518,8 @@ if (!configurado) {
     libros = datos.libros.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre, "es"); });
     ordenCategorias = datos.categorias || [];
     subsPorCategoria = datos.subcategorias || {};
+    vendidos = datos.vendidos || {};
+    ajustesSecciones = datos.secciones || {};
     limpiarCarrito();
     pintarContador();
     pintarCategorias();

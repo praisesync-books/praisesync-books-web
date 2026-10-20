@@ -49,6 +49,7 @@
         <a href="#pedidos" data-pestana="pedidos">Pedidos <span class="globo" id="globo-pendientes" hidden></span></a>
         <a href="#libros" data-pestana="libros">Libros</a>
         <a href="#categorias" data-pestana="categorias">Categorías</a>
+        <a href="#inicio" data-pestana="inicio">Página principal</a>
       </nav>
     </header>
 
@@ -111,6 +112,20 @@
         </form>
         <ul class="lista-categorias" id="lista-categorias"></ul>
         <p class="ayuda ayuda--izq">El orden de esta lista es el orden de los botones de categoría en la tienda. Las subcategorías aparecen en la tienda al tocar su categoría.</p>
+      </section>
+
+      <!-- PÁGINA PRINCIPAL -->
+      <section data-seccion="inicio" hidden>
+        <div class="titulo-fila"><h1>Página principal</h1></div>
+        <p class="ayuda ayuda--izq">Elige qué carruseles se muestran en la página principal de la tienda. La lista completa de "Todos los libros" siempre aparece debajo.</p>
+        <div class="bloque">
+          <h2>Secciones especiales</h2>
+          <div class="interruptores" id="interruptores-especiales"></div>
+        </div>
+        <div class="bloque">
+          <h2>Carruseles por categoría <small>(en el orden de la pestaña Categorías)</small></h2>
+          <div class="interruptores" id="interruptores-categorias"></div>
+        </div>
       </section>
     </main>
   </div>
