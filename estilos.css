@@ -255,7 +255,14 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 @media (max-width: 520px) { .marca__logo { height: 38px; } }
 .portada h1, .tarjeta__titulo, .detalle__titulo, .cajon__cabecera h2, .confirmacion h3 { font-weight: 800; letter-spacing: -.02em; color: var(--marino); }
 .tarjeta__titulo { font-weight: 700; letter-spacing: -.01em; }
-.portada { background: linear-gradient(135deg, #0a1f5c 0%, #0b4fd1 60%, #14a0f0 100%); color: #fff; padding: 44px 0 40px; margin-bottom: 28px; }
+.portada { background: linear-gradient(135deg, #0a1f5c 0%, #0b4fd1 60%, #14a0f0 100%); color: #fff; padding: 26px 0 24px; margin-bottom: 24px; }
+.portada h1 { font-size: clamp(1.6rem, 4vw, 2.3rem); margin-bottom: 6px; }
+.portada p { max-width: none; font-size: 1rem; line-height: 1.5; }
+@media (max-width: 520px) {
+  .portada { padding: 20px 0 18px; margin-bottom: 18px; }
+  .portada p { font-size: .85rem; }
+  .portada h1 { font-size: 1.5rem; }
+}
 .portada h1 { color: #fff; }
 .portada p { color: rgba(255,255,255,.88); }
 .sin-foto { color: var(--acento); }
