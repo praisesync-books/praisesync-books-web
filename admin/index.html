@@ -156,6 +156,18 @@
         </div>
         <datalist id="lista-editoriales"></datalist>
         <div class="dos-campos">
+          <label class="campo"><span>N° de páginas</span><input name="paginas" type="number" min="1" step="1" inputmode="numeric" placeholder="1248"></label>
+          <label class="campo"><span>Cubierta</span><input name="cubierta" maxlength="40" list="lista-cubiertas" placeholder="Tapa dura" autocomplete="off"></label>
+        </div>
+        <datalist id="lista-cubiertas">
+          <option value="Tapa dura"><option value="Tapa blanda"><option value="Rústica"><option value="Imitación piel">
+          <option value="Piel"><option value="Vinilo"><option value="Tela"><option value="Tapa dura con cierre">
+        </datalist>
+        <div class="dos-campos">
+          <label class="campo"><span>Peso <small>(gramos)</small></span><input name="peso" type="number" min="1" step="1" inputmode="numeric" placeholder="450"></label>
+          <label class="campo"><span>Dimensiones <small>(cm)</small></span><input name="dimensiones" maxlength="40" placeholder="15 x 22 x 3"></label>
+        </div>
+        <div class="dos-campos">
           <label class="campo"><span>Categoría</span>
             <select name="categoria" id="select-categoria"></select></label>
           <label class="campo"><span>Subcategoría</span>

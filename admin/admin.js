@@ -25,6 +25,17 @@ var ESTADOS = {
 };
 
 // ---------- Utilidades ----------
+// "15x22x3", "15 X 22 cm" → "15 x 22 x 3" (sin "cm": la tienda lo agrega).
+function limpiarDimensiones(v) {
+  return String(v || "").replace(/cm\.?/gi, "").replace(/\s*[x×*]\s*/gi, " x ").replace(/\s+/g, " ").trim().slice(0, 40);
+}
+// En el CSV el peso puede venir como "450", "450 g" o "1,2 kg".
+function pesoEnGramos(v) {
+  var t = String(v || "").toLowerCase().replace(",", ".");
+  var n = parseFloat(t.replace(/[^0-9.]/g, ""));
+  if (!isFinite(n) || n <= 0) return 0;
+  return Math.round(/kg/.test(t) ? n * 1000 : n);
+}
 function soloDigitos(isbn) { return String(isbn || "").toUpperCase().replace(/[^0-9X]/g, ""); }
 // Deja el ISBN tal como lo escriben (con o sin guiones), sin espacios sobrantes.
 function limpiarISBN(v) { return String(v || "").trim().replace(/\s+/g, "").replace(/^ISBN:?/i, "").slice(0, 20); }
@@ -164,6 +175,7 @@ function armarCatalogo() {
       return {
         id: l.id, nombre: l.nombre || "", autor: l.autor || "", categoria: l.categoria || "",
         subcategoria: l.subcategoria || "", editorial: l.editorial || "", isbn: l.isbn || "",
+        paginas: l.paginas || 0, peso: l.peso || 0, dimensiones: l.dimensiones || "", cubierta: l.cubierta || "",
         precio: typeof l.precio === "number" ? l.precio : 0, stock: l.stock || 0,
         resumen: resumenDe(d), larga: d.length > LARGO_RESUMEN, foto: l.foto || 0,
         destacado: !!l.destacado, creado: msDe(l.creado) || l.creadoMs || 0
@@ -657,6 +669,10 @@ function abrirEditor(id) {
   $form.autor.value = l ? l.autor || "" : "";
   $form.editorial.value = l ? l.editorial || "" : "";
   $form.isbn.value = l ? l.isbn || "" : "";
+  $form.paginas.value = l && l.paginas ? l.paginas : "";
+  $form.peso.value = l && l.peso ? l.peso : "";
+  $form.dimensiones.value = l ? l.dimensiones || "" : "";
+  $form.cubierta.value = l ? l.cubierta || "" : "";
   var eds = [];
   libros.forEach(function (x) { if (x.editorial && eds.indexOf(x.editorial) === -1) eds.push(x.editorial); });
   $("lista-editoriales").innerHTML = eds.sort().map(function (n) { return '<option value="' + escapar(n) + '">'; }).join("");
@@ -736,6 +752,10 @@ $form.addEventListener("submit", function (e) {
     autor: $form.autor.value.trim(),
     editorial: $form.editorial.value.trim(),
     isbn: limpiarISBN($form.isbn.value),
+    paginas: aNumero($form.paginas.value) || 0,
+    peso: aNumero($form.peso.value) || 0,
+    dimensiones: limpiarDimensiones($form.dimensiones.value),
+    cubierta: $form.cubierta.value.trim().slice(0, 40),
     categoria: $form.categoria.value === "__nueva" ? "" : $form.categoria.value,
     subcategoria: ($form.categoria.value && $form.subcategoria.value !== "__nueva") ? $form.subcategoria.value : "",
     precio: precio,
@@ -816,8 +836,12 @@ $("archivo-csv").addEventListener("change", function (e) {
         precio: aNumero(f.precio) || 0, stock: aNumero(f.stock) || 0,
         descripcion: f.descripcion || "", actualizado: serverTimestamp()
       };
-      // Editorial e ISBN solo se cambian si el archivo trae esas columnas.
+      // Editorial, ISBN y detalles solo se cambian si el archivo trae esas columnas.
       if (f.editorial !== undefined) datos.editorial = f.editorial;
+      if (f.paginas !== undefined) datos.paginas = aNumero(f.paginas) || 0;
+      if (f.peso !== undefined) datos.peso = pesoEnGramos(f.peso);
+      if (f.dimensiones !== undefined) datos.dimensiones = limpiarDimensiones(f.dimensiones);
+      if (f.cubierta !== undefined) datos.cubierta = String(f.cubierta).trim().slice(0, 40);
       if (f.isbn !== undefined) {
         if (/e\+/i.test(f.isbn)) isbnDanados.push(f.nombre);
         else datos.isbn = limpiarISBN(f.isbn);
