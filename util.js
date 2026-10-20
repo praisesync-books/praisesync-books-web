@@ -68,3 +68,25 @@ export function portadaVaciaHTML(titulo) {
     '<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2.5Z"/><path d="M12 7v6M9 10h6"/></svg>' +
     "<span>" + escapar(titulo) + "</span></div>";
 }
+
+// ---------- Enlace propio de cada libro ----------
+// Formato: ?libro=nombre-del-libro-abc123 (las últimas letras son el inicio del id, así el enlace
+// sigue funcionando aunque después se cambie el nombre del libro).
+var LARGO_ID_ENLACE = 6;
+export function slugLibro(l) {
+  var base = sinTildes(l.nombre || "libro").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/, "");
+  return (base ? base + "-" : "") + String(l.id || "").slice(0, LARGO_ID_ENLACE);
+}
+export function buscarPorSlug(lista, valor) {
+  valor = String(valor || "").trim();
+  if (!valor) return null;
+  var exacto = lista.find(function (l) { return l.id === valor || slugLibro(l) === valor; });
+  if (exacto) return exacto;
+  var corto = valor.slice(valor.lastIndexOf("-") + 1);
+  if (corto.length < 4) return null;
+  var coinciden = lista.filter(function (l) { return String(l.id).indexOf(corto) === 0; });
+  return coinciden.length === 1 ? coinciden[0] : null;
+}
+export function enlaceLibro(baseTienda, l) {
+  return baseTienda.replace(/[?#].*$/, "") + "?libro=" + encodeURIComponent(slugLibro(l));
+}

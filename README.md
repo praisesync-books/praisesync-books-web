@@ -46,6 +46,14 @@ Ojo con el ISBN en Excel: antes de escribirlo, pon esa columna en formato **Text
 Si un libro ya existe (mismo ISBN, o mismo nombre y autor), se actualiza en vez de duplicarse. Las categorías y subcategorías nuevas se crean solas.
 Las fotos se agregan después, editando cada libro.
 
+## Compartir libros
+
+- Cada libro tiene su propio enlace (ej. `…/?libro=biblia-devocional-macarthur-Qx7pK2`). Al abrirlo, la tienda muestra directamente ese libro.
+- En la tienda: botón **Compartir** en la ficha del libro. En el panel: **Copiar enlace** al editar un libro.
+- El enlace sigue funcionando aunque cambies el nombre del libro.
+- Al pegar cualquier enlace de la tienda en WhatsApp o Facebook aparece la imagen `img/compartir.jpg` con el logo.
+  Si cambias de dominio, actualiza la dirección en las etiquetas `og:url` y `og:image` de `index.html`.
+
 ## Notas
 
 - Las fotos se reducen automáticamente y se guardan en la base de datos (no hace falta Firebase Storage).

@@ -1,6 +1,6 @@
 import { db, configurado } from "./firebase.js";
 import { collection, doc, query, where, getDoc, getDocs, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { formatoPrecio, sinTildes, escapar, enlaceWhatsApp, codigoPedido, portadaVaciaHTML } from "./util.js";
+import { formatoPrecio, sinTildes, escapar, enlaceWhatsApp, codigoPedido, portadaVaciaHTML, enlaceLibro, buscarPorSlug } from "./util.js";
 
 var T = window.TIENDA;
 var libros = [];          // [{id, nombre, autor, categoria, precio, stock, descripcion, imagen}]
@@ -211,7 +211,11 @@ function pintarDetalle() {
         (l.editorial ? "<div><dt>Editorial</dt><dd>" + escapar(l.editorial) + "</dd></div>" : "") +
         (l.isbn ? "<div><dt>ISBN</dt><dd>" + escapar(l.isbn) + "</dd></div>" : "") +
         "</dl>" : "") +
-      '<div class="detalle__accion">' + accionHTML(l, true) + "</div>" +
+      '<div class="detalle__accion">' + accionHTML(l, true) +
+        '<button type="button" class="boton boton--contorno boton--compartir" data-compartir="' + l.id + '">' +
+          '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>' +
+          "Compartir</button>" +
+      "</div>" +
     "</div>";
   observarFotos($("detalle-contenido"));
   // Si la descripción es larga, se trae completa solo al abrir la ficha.
@@ -223,13 +227,49 @@ function pintarDetalle() {
     }).catch(function () {}).finally(function () { l.pidiendoDescripcion = false; });
   }
 }
+var TITULO_BASE = document.title;
+var BASE_TIENDA = location.href.replace(/[?#].*$/, "");
 function abrirDetalle(id) {
   libroEnDetalle = id;
   pintarDetalle();
-  if ($detalle.showModal) $detalle.showModal(); else $detalle.setAttribute("open", "");
+  if (!$detalle.open) { if ($detalle.showModal) $detalle.showModal(); else $detalle.setAttribute("open", ""); }
+  var l = libroPorId(id);
+  // La dirección del navegador muestra el enlace propio del libro mientras la ficha está abierta.
+  if (l) {
+    try { history.replaceState(null, "", enlaceLibro(BASE_TIENDA, l)); } catch (e) {}
+    document.title = l.nombre + " · " + TITULO_BASE;
+  }
+}
+$detalle.addEventListener("close", function () {
+  libroEnDetalle = null;
+  try { history.replaceState(null, "", BASE_TIENDA); } catch (e) {}
+  document.title = TITULO_BASE;
+});
+
+function compartirLibro(l) {
+  var url = enlaceLibro(BASE_TIENDA, l);
+  var texto = l.nombre + (l.autor ? " — " + l.autor : "") + (l.precio ? " · " + formatoPrecio(l.precio) : "");
+  if (navigator.share) {
+    navigator.share({ title: l.nombre, text: texto, url: url }).catch(function () {});
+    return;
+  }
+  copiarTexto(url).then(function () { avisar("Enlace copiado. Pégalo en WhatsApp o en tus redes."); })
+    .catch(function () { window.prompt("Copia este enlace:", url); });
+}
+function copiarTexto(t) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t);
+  return new Promise(function (ok, mal) {
+    var a = document.createElement("textarea");
+    a.value = t; a.style.position = "fixed"; a.style.opacity = "0";
+    document.body.appendChild(a); a.select();
+    try { document.execCommand("copy") ? ok() : mal(); } catch (e) { mal(e); }
+    a.remove();
+  });
 }
 $detalle.addEventListener("click", function (e) {
   if (e.target.closest("[data-cerrar]") || e.target === $detalle) { $detalle.close(); return; }
+  var comp = e.target.closest("[data-compartir]");
+  if (comp) { var lc = libroPorId(comp.dataset.compartir); if (lc) compartirLibro(lc); return; }
   var mas = e.target.closest("[data-mas]"), menos = e.target.closest("[data-menos]");
   if (mas) {
     var nuevo = !carrito[mas.dataset.mas];
@@ -554,7 +594,20 @@ if (!configurado) {
     pintarContador();
     pintarCategorias();
     pintarLibros();
+    abrirDesdeEnlace();
   }).catch(function () {
     $estado.textContent = "No se pudo cargar el catálogo. Intenta recargar la página.";
   });
+}
+
+// Si la dirección trae ?libro=…, se abre directamente la ficha de ese libro.
+function abrirDesdeEnlace() {
+  var valor = new URLSearchParams(location.search).get("libro");
+  if (!valor) return;
+  var l = buscarPorSlug(libros, valor);
+  if (l) abrirDetalle(l.id);
+  else {
+    try { history.replaceState(null, "", BASE_TIENDA); } catch (e) {}
+    avisar("Ese libro ya no está disponible. Mira el resto del catálogo.");
+  }
 }

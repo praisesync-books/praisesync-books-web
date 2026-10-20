@@ -4,7 +4,7 @@ import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, runTransaction,
   serverTimestamp, deleteField, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { formatoPrecio, aNumero, sinTildes, escapar, enlaceWhatsApp, codigoPedido, leerCSV, portadaVaciaHTML } from "../util.js";
+import { formatoPrecio, aNumero, sinTildes, escapar, enlaceWhatsApp, codigoPedido, leerCSV, portadaVaciaHTML, enlaceLibro } from "../util.js";
 
 var auth = getAuth(app);
 var $ = function (id) { return document.getElementById(id); };
@@ -668,6 +668,7 @@ function abrirEditor(id) {
   opcionesCategoria(l ? l.categoria || "" : "");
   opcionesSubcategoria(l ? l.subcategoria || "" : "");
   $("borrar-libro").hidden = !l;
+  $("copiar-enlace").hidden = !l || l.activo === false;
   $("error-libro").hidden = true;
   pintarFoto();
   $modal.showModal();
@@ -1089,4 +1090,15 @@ document.addEventListener("change", function (e) {
   else ajustes[clave] = i.checked;
   guardarAjustes().then(function () { avisar(i.checked ? "Carrusel activado" : "Carrusel ocultado"); })
     .catch(function (err) { ajustes = JSON.parse(anterior); pintarInicio(); avisar(mensajeError(err), true); });
+});
+
+// ---------- Enlace propio del libro ----------
+var BASE_TIENDA = new URL("../", location.href).href;
+$("copiar-enlace").addEventListener("click", function () {
+  var l = libros.find(function (x) { return x.id === libroEditando; });
+  if (!l) return;
+  var url = enlaceLibro(BASE_TIENDA, l);
+  var listo = function () { avisar("Enlace copiado: pégalo en WhatsApp"); };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(url).then(listo, function () { window.prompt("Copia este enlace:", url); });
+  else window.prompt("Copia este enlace:", url);
 });

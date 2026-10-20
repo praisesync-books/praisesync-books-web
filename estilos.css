@@ -341,3 +341,7 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 .volver-inicio { margin-left: auto; background: none; border: 0; color: var(--acento); font: 600 .9rem "Inter", sans-serif; cursor: pointer; }
 .volver-inicio:hover { text-decoration: underline; }
 @media (max-width: 520px) { .ver-todo { width: 100%; } .ver-todo-fila { margin-top: -40px; } }
+
+/* Botón compartir en la ficha */
+.detalle__accion { display: flex; flex-direction: column; gap: 10px; }
+.boton--compartir { width: 100%; }
