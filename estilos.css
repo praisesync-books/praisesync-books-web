@@ -259,3 +259,9 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 .portada h1 { color: #fff; }
 .portada p { color: rgba(255,255,255,.88); }
 .sin-foto { color: var(--acento); }
+
+/* Datos del libro en la ficha */
+.detalle__datos { margin: 16px 0 0; padding: 12px 0 0; border-top: 1px solid var(--borde); display: grid; gap: 6px; font-size: .9rem; }
+.detalle__datos div { display: grid; grid-template-columns: 90px 1fr; gap: 8px; }
+.detalle__datos dt { color: var(--suave); }
+.detalle__datos dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }

@@ -162,6 +162,10 @@ function pintarDetalle() {
       '<p class="detalle__precio">' + formatoPrecio(l.precio) +
         (!agotado && l.stock <= 3 ? ' <span class="tarjeta__stock">Quedan ' + l.stock + "</span>" : "") + "</p>" +
       (l.descripcion ? '<p class="detalle__descripcion">' + escapar(l.descripcionCompleta || l.descripcion) + "</p>" : "") +
+      ((l.editorial || l.isbn) ? '<dl class="detalle__datos">' +
+        (l.editorial ? "<div><dt>Editorial</dt><dd>" + escapar(l.editorial) + "</dd></div>" : "") +
+        (l.isbn ? "<div><dt>ISBN</dt><dd>" + escapar(l.isbn) + "</dd></div>" : "") +
+        "</dl>" : "") +
       '<div class="detalle__accion">' + accionHTML(l, true) + "</div>" +
     "</div>";
   observarFotos($("detalle-contenido"));
@@ -194,7 +198,9 @@ function pintarLibros() {
   var q = sinTildes($buscar.value.trim());
   var visibles = libros.filter(function (l) {
     var okCat = categoriaActiva === "Todas" || l.categoria === categoriaActiva;
-    var okBusqueda = !q || sinTildes(l.nombre + " " + l.autor + " " + l.categoria).indexOf(q) !== -1;
+    var texto = sinTildes([l.nombre, l.autor, l.categoria, l.editorial, l.isbn, String(l.isbn).replace(/[^0-9Xx]/g, "")].join(" "));
+    var qISBN = /^[\d\s-]{6,}x?$/.test(q) ? q.replace(/[\s-]/g, "") : "";
+    var okBusqueda = !q || texto.indexOf(q) !== -1 || (qISBN && texto.indexOf(qISBN) !== -1);
     return okCat && okBusqueda;
   });
 
@@ -343,6 +349,7 @@ function guardarCache(datos) {
 function normalizar(x, id) {
   return {
     id: id || x.id, nombre: x.nombre || "", autor: x.autor || "", categoria: x.categoria || "",
+    editorial: x.editorial || "", isbn: x.isbn || "",
     precio: typeof x.precio === "number" ? x.precio : null,
     stock: typeof x.stock === "number" ? x.stock : 0,
     descripcion: x.resumen !== undefined ? x.resumen : (x.descripcion || ""),

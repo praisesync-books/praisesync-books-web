@@ -40,8 +40,9 @@ Firebase → **Authentication → Usuarios → Agregar usuario**, y agrega su co
 
 ### Importar muchos libros a la vez
 Usa `plantilla-catalogo.csv` como modelo (ábrela en Excel o Google Sheets). Columnas:
-**Nombre, Autor, Categoría, Precio, Stock, Descripción**. Guárdala como CSV y en el panel toca **Libros → Importar CSV**.
-Si un libro ya existe (mismo nombre y autor), se actualiza en vez de duplicarse. Las categorías nuevas se crean solas.
+**Nombre, Autor, Editorial, ISBN, Categoría, Precio, Stock, Descripción**.
+Ojo con el ISBN en Excel: antes de escribirlo, pon esa columna en formato **Texto**; si no, Excel lo convierte en algo como `9,78E+12`. Guárdala como CSV y en el panel toca **Libros → Importar CSV**.
+Si un libro ya existe (mismo ISBN, o mismo nombre y autor), se actualiza en vez de duplicarse. Las categorías nuevas se crean solas.
 Las fotos se agregan después, editando cada libro.
 
 ## Notas

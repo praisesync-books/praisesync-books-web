@@ -1,4 +1,3 @@
-Nombre,Autor,Categoría,Precio,Stock,Descripción,Imagen
-Biblia de ejemplo (borrar),Autor de ejemplo,Biblias,85000,5,"Reemplaza esta fila con una Biblia real. La descripción puede tener comas, solo va entre comillas.",
-Libro de ejemplo (borrar),Autor de ejemplo,Devocionales,45000,3,Reemplaza esta fila con un libro real.,
-Libro agotado de ejemplo (borrar),Autor de ejemplo,Estudio bíblico,60000,0,Con Stock en 0 el libro aparece como Agotado y no se puede pedir.,
+Nombre,Autor,Editorial,ISBN,Categoría,Precio,Stock,Descripción
+Biblia de ejemplo (borrar),Autor de ejemplo,Editorial de ejemplo,978-1-60255-180-0,Biblias,85000,5,"Reemplaza esta fila con una Biblia real. La descripción puede tener comas, solo va entre comillas."
+Libro de ejemplo (borrar),Autor de ejemplo,Editorial de ejemplo,9788408004004,Devocionales,45000,3,Reemplaza esta fila con un libro real.

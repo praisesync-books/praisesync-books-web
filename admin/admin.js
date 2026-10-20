@@ -24,6 +24,9 @@ var ESTADOS = {
 };
 
 // ---------- Utilidades ----------
+function soloDigitos(isbn) { return String(isbn || "").toUpperCase().replace(/[^0-9X]/g, ""); }
+// Deja el ISBN tal como lo escriben (con o sin guiones), sin espacios sobrantes.
+function limpiarISBN(v) { return String(v || "").trim().replace(/\s+/g, "").replace(/^ISBN:?/i, "").slice(0, 20); }
 function avisar(texto, esError) {
   var a = $("aviso");
   a.textContent = texto;
@@ -152,6 +155,7 @@ function armarCatalogo() {
       var d = String(l.descripcion || "");
       return {
         id: l.id, nombre: l.nombre || "", autor: l.autor || "", categoria: l.categoria || "",
+        editorial: l.editorial || "", isbn: l.isbn || "",
         precio: typeof l.precio === "number" ? l.precio : 0, stock: l.stock || 0,
         resumen: resumenDe(d), larga: d.length > LARGO_RESUMEN, foto: l.foto || 0
       };
@@ -495,7 +499,9 @@ function cambiarEstado(pedidoId, nuevo) {
 function pintarLibros() {
   var q = sinTildes($("buscar-libros").value.trim());
   var lista = libros.filter(function (l) {
-    return !q || sinTildes(l.nombre + " " + l.autor + " " + l.categoria).indexOf(q) !== -1;
+    var texto = sinTildes([l.nombre, l.autor, l.categoria, l.editorial, l.isbn, soloDigitos(l.isbn)].join(" "));
+    var qISBN = /^[\d\s-]{6,}x?$/.test(q) ? q.replace(/[\s-]/g, "") : "";
+    return !q || texto.indexOf(q) !== -1 || (qISBN && texto.indexOf(qISBN) !== -1);
   });
   $("estado-libros").textContent = libros.length
     ? (lista.length ? libros.length + " libro" + (libros.length === 1 ? "" : "s") + " en total" : "Ningún libro coincide con la búsqueda.")
@@ -507,7 +513,7 @@ function pintarLibros() {
         (l.foto ? '<span class="foto-perezosa" data-portada="' + l.id + '">' + portadaVaciaHTML("") + "</span>" : portadaVaciaHTML("")) + "</button>" +
       '<button type="button" class="fila-libro__info" data-editar="' + l.id + '">' +
         "<strong>" + escapar(l.nombre) + "</strong>" +
-        "<span>" + escapar([l.autor, l.categoria].filter(Boolean).join(" · ")) + "</span>" +
+        "<span>" + escapar([l.autor, l.editorial, l.categoria].filter(Boolean).join(" · ")) + "</span>" +
         "<span>" + formatoPrecio(l.precio) + (l.activo === false ? ' · <em>Oculto</em>' : "") + "</span>" +
       "</button>" +
       '<div class="fila-libro__stock">' +
@@ -595,6 +601,11 @@ function abrirEditor(id) {
   $("titulo-modal-libro").textContent = l ? "Editar libro" : "Nuevo libro";
   $form.nombre.value = l ? l.nombre || "" : "";
   $form.autor.value = l ? l.autor || "" : "";
+  $form.editorial.value = l ? l.editorial || "" : "";
+  $form.isbn.value = l ? l.isbn || "" : "";
+  var eds = [];
+  libros.forEach(function (x) { if (x.editorial && eds.indexOf(x.editorial) === -1) eds.push(x.editorial); });
+  $("lista-editoriales").innerHTML = eds.sort().map(function (n) { return '<option value="' + escapar(n) + '">'; }).join("");
   $form.precio.value = l && typeof l.precio === "number" ? l.precio : "";
   $form.stock.value = l ? (l.stock || 0) : 0;
   $form.descripcion.value = l ? l.descripcion || "" : "";
@@ -666,6 +677,8 @@ $form.addEventListener("submit", function (e) {
   var datos = {
     nombre: $form.nombre.value.trim(),
     autor: $form.autor.value.trim(),
+    editorial: $form.editorial.value.trim(),
+    isbn: limpiarISBN($form.isbn.value),
     categoria: $form.categoria.value === "__nueva" ? "" : $form.categoria.value,
     precio: precio,
     stock: Math.max(0, parseInt($form.stock.value, 10) || 0),
@@ -729,7 +742,12 @@ $("archivo-csv").addEventListener("change", function (e) {
     var filas = leerCSV(texto).filter(function (f) { return f.nombre; });
     if (!filas.length) { avisar("El archivo no tiene libros. Revisa que la primera fila tenga los títulos de columna.", true); return; }
     var existentes = {};
-    libros.forEach(function (l) { existentes[sinTildes(l.nombre + "|" + (l.autor || ""))] = l.id; });
+    var porISBN = {};
+    libros.forEach(function (l) {
+      existentes[sinTildes(l.nombre + "|" + (l.autor || ""))] = l.id;
+      if (soloDigitos(l.isbn)) porISBN[soloDigitos(l.isbn)] = l.id;
+    });
+    var isbnDanados = [];
     var nuevos = 0, actualizados = 0;
     var cats = {};
     var operaciones = filas.map(function (f) {
@@ -738,14 +756,23 @@ $("archivo-csv").addEventListener("change", function (e) {
         precio: aNumero(f.precio) || 0, stock: aNumero(f.stock) || 0,
         descripcion: f.descripcion || "", actualizado: serverTimestamp()
       };
+      // Editorial e ISBN solo se cambian si el archivo trae esas columnas.
+      if (f.editorial !== undefined) datos.editorial = f.editorial;
+      if (f.isbn !== undefined) {
+        if (/e\+/i.test(f.isbn)) isbnDanados.push(f.nombre);
+        else datos.isbn = limpiarISBN(f.isbn);
+      }
       if (datos.categoria) cats[datos.categoria] = true;
-      var id = existentes[sinTildes(f.nombre + "|" + (f.autor || ""))];
+      var id = (datos.isbn && porISBN[soloDigitos(datos.isbn)]) || existentes[sinTildes(f.nombre + "|" + (f.autor || ""))];
       if (id) { actualizados++; return { id: id, datos: datos }; }
       nuevos++;
       return { id: null, datos: Object.assign({ activo: true, foto: 0, creado: serverTimestamp() }, datos) };
     });
     var msg = "Se van a importar " + filas.length + " libros:\n• " + nuevos + " nuevos\n• " + actualizados +
-      " ya existían (se actualizan precio, stock y datos; la foto se conserva)\n\n¿Continuar?";
+      " ya existían (se actualizan precio, stock y datos; la foto se conserva)" +
+      (isbnDanados.length ? "\n\nOjo: Excel dañó el ISBN de " + isbnDanados.length + " libro(s) (aparece como 9,78E+12). " +
+        "Esos ISBN no se importan. En Excel, pon la columna ISBN en formato Texto y vuelve a escribirlos." : "") +
+      "\n\n¿Continuar?";
     if (!confirm(msg)) return;
 
     avisar("Importando…");
