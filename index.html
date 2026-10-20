@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PraiseSync Books Web</title>
-  <meta name="description" content="Libros y Biblias. Compra fácil por WhatsApp.">
+  <meta name="description" content="Libros y Biblias. Haz tu pedido y lo coordinamos por WhatsApp.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -19,7 +19,14 @@
         </span>
         <span id="nombre-tienda">PraiseSync Books Web</span>
       </a>
-      <a class="boton boton--contorno" id="whatsapp-general" href="#" target="_blank" rel="noopener">Escríbenos</a>
+      <div class="encabezado__acciones">
+        <a class="boton boton--contorno boton--solo-escritorio" id="whatsapp-general" href="#" target="_blank" rel="noopener">Escríbenos</a>
+        <button class="boton boton--acento" id="abrir-pedido" type="button" aria-label="Ver mi pedido">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7L6 7Z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+          <span>Mi pedido</span>
+          <span class="contador" id="contador" hidden>0</span>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -27,7 +34,7 @@
     <section class="portada">
       <div class="contenedor">
         <h1>Libros y Biblias</h1>
-        <p>Elige tu libro y pídelo por WhatsApp. Coordinamos el pago y la entrega directamente contigo.</p>
+        <p>Agrega los libros a tu pedido y envíalo por WhatsApp. Coordinamos el pago y la entrega directamente contigo.</p>
       </div>
     </section>
 
@@ -38,7 +45,7 @@
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <input id="buscar" type="search" placeholder="Buscar por título, autor o categoría" autocomplete="off">
         </label>
-        <div class="categorias" id="categorias" role="tablist" aria-label="Categorías"></div>
+        <div class="categorias" id="categorias" aria-label="Categorías"></div>
       </div>
 
       <p class="estado" id="estado" aria-live="polite">Cargando catálogo…</p>
@@ -53,7 +60,55 @@
     </div>
   </footer>
 
+  <!-- Pedido (carrito) -->
+  <dialog class="cajon" id="cajon" aria-labelledby="cajon-titulo">
+    <div class="cajon__cabecera">
+      <h2 id="cajon-titulo">Mi pedido</h2>
+      <button class="icono-boton" type="button" data-cerrar aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="cajon__cuerpo" id="vista-carrito">
+      <ul class="lista-pedido" id="lista-pedido"></ul>
+      <p class="estado" id="pedido-vacio">Todavía no has agregado libros.</p>
+
+      <form id="form-pedido" class="form-pedido" hidden>
+        <div class="total-fila"><span>Total</span><strong id="total-pedido">$0</strong></div>
+        <label class="campo">
+          <span>Tu nombre</span>
+          <input name="nombre" required maxlength="80" autocomplete="name">
+        </label>
+        <label class="campo">
+          <span>Tu teléfono (WhatsApp)</span>
+          <input name="telefono" required maxlength="20" inputmode="tel" autocomplete="tel" pattern="[0-9 +()-]{7,20}">
+        </label>
+        <label class="campo">
+          <span>Notas <small>(opcional: barrio, dirección, cómo prefieres pagar)</small></span>
+          <textarea name="notas" rows="2" maxlength="300"></textarea>
+        </label>
+        <p class="error" id="error-pedido" hidden></p>
+        <button class="boton boton--whatsapp" type="submit" id="enviar-pedido">Continuar a WhatsApp</button>
+        <p class="ayuda">Guardamos tu pedido y luego lo envías por WhatsApp para coordinar el pago y la entrega.</p>
+      </form>
+    </div>
+
+    <div class="cajon__cuerpo" id="vista-confirmacion" hidden>
+      <div class="confirmacion">
+        <div class="confirmacion__icono" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>
+        </div>
+        <h3>Pedido <span id="codigo-pedido"></span> registrado</h3>
+        <p>Último paso: envíanos el pedido por WhatsApp para confirmar el pago y la entrega.</p>
+        <a class="boton boton--whatsapp" id="link-whatsapp" href="#" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+        <button class="boton boton--contorno" type="button" data-cerrar>Seguir viendo libros</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
+
   <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

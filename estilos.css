@@ -6,6 +6,8 @@
   --borde: #e8e1d6;
   --acento: #7a2e2e;
   --acento-suave: #f3e7e2;
+  --acento-hover: #632424;
+  --error: #b42318;
   --whatsapp: #1f9d55;
   --whatsapp-hover: #18834a;
   --radio: 14px;
@@ -13,6 +15,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -75,7 +78,7 @@ a { color: inherit; }
 .tarjeta__foto { position: relative; aspect-ratio: 3 / 4; background: var(--acento-suave); }
 .tarjeta__foto img { width: 100%; height: 100%; object-fit: cover; }
 .tarjeta--agotada .tarjeta__foto img { filter: grayscale(1) opacity(.6); }
-.tarjeta__sin-foto {
+.sin-foto {
   height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   padding: 16px; text-align: center; color: var(--acento);
   font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1rem; line-height: 1.25;
@@ -110,10 +113,97 @@ a { color: inherit; }
 .boton--contorno { border-color: var(--borde); background: var(--superficie); }
 .boton--contorno:hover { border-color: var(--acento); }
 .boton--whatsapp { background: var(--whatsapp); color: #fff; width: 100%; }
+.boton--acento { background: var(--acento); color: #fff; }
+.boton--acento:hover { background: var(--acento-hover); }
+.tarjeta .boton { width: 100%; }
+.boton:disabled { opacity: .6; cursor: wait; }
 .boton--whatsapp:hover { background: var(--whatsapp-hover); }
-.boton--deshabilitado { background: var(--borde); color: var(--suave); cursor: not-allowed; }
+.boton--deshabilitado { background: var(--borde); color: var(--suave); cursor: not-allowed; width: 100%; }
 .boton--deshabilitado:hover { background: var(--borde); }
 
 /* Pie */
 .pie { border-top: 1px solid var(--borde); padding: 24px 0; color: var(--suave); font-size: .875rem; }
 .pie p { margin: 0; }
+
+/* Encabezado: acciones */
+.encabezado__acciones { display: flex; align-items: center; gap: 8px; }
+.contador {
+  display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px;
+  border-radius: 999px; background: #fff; color: var(--acento); font-size: .8rem; font-weight: 700;
+}
+@media (max-width: 520px) {
+  .boton--solo-escritorio, .solo-escritorio { display: none; }
+  .tarjeta .cantidad span { font-size: .8rem; }
+  .marca { font-size: 1rem; }
+}
+
+/* Selector de cantidad */
+.cantidad {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  border: 1px solid var(--acento); border-radius: 999px; min-height: 44px; padding: 3px;
+  color: var(--acento); font-weight: 600; font-size: .9rem;
+}
+.cantidad button {
+  width: 36px; height: 36px; border-radius: 999px; border: 0; background: var(--acento-suave);
+  color: var(--acento); font-size: 1.2rem; line-height: 1; cursor: pointer; flex: none;
+}
+.cantidad button:hover { background: var(--acento); color: #fff; }
+.cantidad--chica { min-height: 36px; gap: 4px; }
+.cantidad--chica button { width: 30px; height: 30px; font-size: 1rem; }
+.cantidad--chica span { min-width: 20px; text-align: center; }
+
+/* Cajón del pedido */
+.cajon {
+  margin: 0 0 0 auto; height: 100%; max-height: 100%; width: min(440px, 100%); max-width: 100%;
+  border: 0; padding: 0; background: var(--fondo); color: var(--texto);
+  display: none; flex-direction: column;
+}
+.cajon[open] { display: flex; }
+.cajon::backdrop { background: rgba(42, 38, 34, .45); }
+.cajon__cabecera {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px; border-bottom: 1px solid var(--borde); background: var(--superficie);
+}
+.cajon__cabecera h2 { margin: 0; font-family: "Fraunces", Georgia, serif; font-size: 1.3rem; }
+.cajon__cuerpo { padding: 16px; overflow-y: auto; flex: 1; }
+.icono-boton {
+  display: grid; place-items: center; width: 40px; height: 40px; border-radius: 999px;
+  border: 1px solid var(--borde); background: var(--superficie); color: var(--texto); cursor: pointer;
+}
+
+.lista-pedido { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.item-pedido {
+  display: grid; grid-template-columns: 48px 1fr auto; gap: 12px; align-items: center;
+  background: var(--superficie); border: 1px solid var(--borde); border-radius: 12px; padding: 10px;
+}
+.item-pedido__foto { width: 48px; height: 64px; border-radius: 6px; background: var(--acento-suave); overflow: hidden; }
+.item-pedido__foto img { width: 100%; height: 100%; object-fit: cover; }
+.item-pedido__info { display: flex; flex-direction: column; min-width: 0; font-size: .85rem; color: var(--suave); }
+.item-pedido__info strong { color: var(--texto); font-size: .95rem; overflow: hidden; text-overflow: ellipsis; }
+
+.form-pedido { display: flex; flex-direction: column; gap: 14px; }
+.total-fila { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 2px; border-bottom: 1px solid var(--borde); font-size: 1.05rem; }
+.total-fila strong { font-size: 1.3rem; }
+.campo { display: flex; flex-direction: column; gap: 6px; font-size: .9rem; font-weight: 500; }
+.campo small { font-weight: 400; color: var(--suave); }
+.campo input, .campo textarea, .campo select {
+  font: inherit; font-weight: 400; color: var(--texto); background: var(--superficie);
+  border: 1px solid var(--borde); border-radius: 10px; padding: 11px 12px; width: 100%;
+}
+.campo input:focus, .campo textarea:focus, .campo select:focus { outline: 2px solid var(--acento-suave); border-color: var(--acento); }
+.ayuda { margin: 0; font-size: .8rem; color: var(--suave); text-align: center; }
+.error { margin: 0; color: var(--error); font-size: .9rem; }
+
+.confirmacion { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 24px 4px; }
+.confirmacion h3 { margin: 4px 0 0; font-family: "Fraunces", Georgia, serif; font-size: 1.35rem; }
+.confirmacion p { margin: 0 0 8px; color: var(--suave); }
+.confirmacion .boton { width: 100%; }
+.confirmacion__icono { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 999px; background: var(--whatsapp); color: #fff; }
+
+/* Aviso flotante */
+.aviso {
+  position: fixed; left: 50%; bottom: 20px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  background: var(--texto); color: #fff; padding: 10px 18px; border-radius: 999px; font-size: .9rem; font-weight: 500;
+  transition: opacity .2s, transform .2s; z-index: 50;
+}
+.aviso--visible { opacity: 1; transform: translate(-50%, 0); }

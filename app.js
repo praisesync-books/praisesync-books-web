@@ -1,192 +1,265 @@
-(function () {
-  "use strict";
+import { db, configurado } from "./firebase.js";
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { formatoPrecio, sinTildes, escapar, enlaceWhatsApp, codigoPedido, portadaVaciaHTML } from "./util.js";
 
-  var T = window.TIENDA;
-  var libros = [];
-  var categoriaActiva = "Todas";
+var T = window.TIENDA;
+var libros = [];          // [{id, nombre, autor, categoria, precio, stock, descripcion, imagen}]
+var ordenCategorias = []; // nombres en el orden definido en el panel
+var categoriaActiva = "Todas";
+var carrito = cargarCarrito(); // { idLibro: cantidad }
 
-  var $grilla = document.getElementById("grilla");
-  var $estado = document.getElementById("estado");
-  var $buscar = document.getElementById("buscar");
-  var $categorias = document.getElementById("categorias");
+var $ = function (id) { return document.getElementById(id); };
+var $grilla = $("grilla"), $estado = $("estado"), $buscar = $("buscar"), $categorias = $("categorias");
+var $cajon = $("cajon");
 
-  document.getElementById("anio").textContent = new Date().getFullYear();
-  document.getElementById("nombre-tienda").textContent = T.nombre;
-  document.getElementById("whatsapp-general").href = enlaceWhatsApp(T.mensajeGeneral);
+$("anio").textContent = new Date().getFullYear();
+$("nombre-tienda").textContent = T.nombre;
+$("whatsapp-general").href = enlaceWhatsApp(T.whatsapp, T.mensajeGeneral);
 
-  // ---------- Utilidades ----------
-  function enlaceWhatsApp(texto) {
-    return "https://wa.me/" + T.whatsapp + "?text=" + encodeURIComponent(texto);
-  }
+// ---------- Carrito en el navegador ----------
+function cargarCarrito() {
+  try { return JSON.parse(localStorage.getItem("psb-carrito") || "{}") || {}; } catch (e) { return {}; }
+}
+function guardarCarrito() {
+  try { localStorage.setItem("psb-carrito", JSON.stringify(carrito)); } catch (e) {}
+}
+function libroPorId(id) { return libros.find(function (l) { return l.id === id; }); }
+function itemsCarrito() {
+  return Object.keys(carrito).map(function (id) {
+    var l = libroPorId(id);
+    return l ? { libro: l, cantidad: carrito[id] } : null;
+  }).filter(Boolean);
+}
+function limpiarCarrito() {
+  // Quita libros que ya no existen y ajusta cantidades al stock disponible.
+  Object.keys(carrito).forEach(function (id) {
+    var l = libroPorId(id);
+    if (!l || l.stock <= 0) delete carrito[id];
+    else if (carrito[id] > l.stock) carrito[id] = l.stock;
+  });
+  guardarCarrito();
+}
+function cantidadTotal() {
+  return itemsCarrito().reduce(function (s, it) { return s + it.cantidad; }, 0);
+}
+function totalCarrito() {
+  return itemsCarrito().reduce(function (s, it) { return s + it.cantidad * (it.libro.precio || 0); }, 0);
+}
 
-  function formatoPrecio(n) {
-    if (n === null) return "";
-    return "$" + n.toLocaleString("es-CO", { maximumFractionDigits: 0 });
-  }
+function cambiarCantidad(id, delta) {
+  var l = libroPorId(id);
+  if (!l) return;
+  var nueva = (carrito[id] || 0) + delta;
+  if (nueva <= 0) delete carrito[id];
+  else if (nueva > l.stock) { avisar("Solo hay " + l.stock + " disponible" + (l.stock === 1 ? "" : "s")); return; }
+  else carrito[id] = nueva;
+  guardarCarrito();
+  pintarContador();
+  pintarLibros();
+  pintarCarrito();
+}
 
-  function aNumero(valor) {
-    var limpio = String(valor || "").replace(/[^\d]/g, "");
-    return limpio === "" ? null : parseInt(limpio, 10);
-  }
+function avisar(texto) {
+  var a = $("aviso");
+  a.textContent = texto;
+  a.classList.add("aviso--visible");
+  clearTimeout(avisar.t);
+  avisar.t = setTimeout(function () { a.classList.remove("aviso--visible"); }, 2200);
+}
 
-  function sinTildes(s) {
-    return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  }
+// ---------- Pintar catálogo ----------
+function pintarContador() {
+  var n = cantidadTotal();
+  $("contador").textContent = n;
+  $("contador").hidden = n === 0;
+}
 
-  function escapar(s) {
-    return String(s || "").replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  }
+function pintarCategorias() {
+  var cats = ["Todas"];
+  ordenCategorias.forEach(function (c) {
+    if (libros.some(function (l) { return l.categoria === c; })) cats.push(c);
+  });
+  libros.forEach(function (l) { if (l.categoria && cats.indexOf(l.categoria) === -1) cats.push(l.categoria); });
+  $categorias.innerHTML = "";
+  if (cats.length <= 2) return;
+  cats.forEach(function (c) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (c === categoriaActiva ? " chip--activa" : "");
+    b.setAttribute("aria-pressed", c === categoriaActiva);
+    b.textContent = c;
+    b.addEventListener("click", function () { categoriaActiva = c; pintarCategorias(); pintarLibros(); });
+    $categorias.appendChild(b);
+  });
+}
 
-  // Lee CSV con comas o punto y coma (Excel en español guarda con ;), y textos entre comillas.
-  function leerCSV(texto) {
-    texto = texto.replace(/^\uFEFF/, "");
-    var primeraLinea = texto.split(/\r?\n/)[0];
-    var sep = (primeraLinea.split(";").length > primeraLinea.split(",").length) ? ";" : ",";
-    var filas = [], fila = [], campo = "", comillas = false;
+function pintarLibros() {
+  var q = sinTildes($buscar.value.trim());
+  var visibles = libros.filter(function (l) {
+    var okCat = categoriaActiva === "Todas" || l.categoria === categoriaActiva;
+    var okBusqueda = !q || sinTildes(l.nombre + " " + l.autor + " " + l.categoria).indexOf(q) !== -1;
+    return okCat && okBusqueda;
+  });
 
-    for (var i = 0; i < texto.length; i++) {
-      var c = texto[i];
-      if (comillas) {
-        if (c === '"' && texto[i + 1] === '"') { campo += '"'; i++; }
-        else if (c === '"') comillas = false;
-        else campo += c;
-      } else if (c === '"') comillas = true;
-      else if (c === sep) { fila.push(campo); campo = ""; }
-      else if (c === "\n" || c === "\r") {
-        if (c === "\r" && texto[i + 1] === "\n") i++;
-        fila.push(campo); filas.push(fila); fila = []; campo = "";
-      } else campo += c;
-    }
-    if (campo !== "" || fila.length) { fila.push(campo); filas.push(fila); }
+  $estado.textContent = visibles.length ? "" : (libros.length ? "No encontramos libros con esa búsqueda." : "Pronto agregaremos libros al catálogo.");
+  $grilla.innerHTML = visibles.map(function (l) {
+    var agotado = l.stock <= 0;
+    var enPedido = carrito[l.id] || 0;
+    var foto = l.imagen
+      ? '<img src="' + escapar(l.imagen) + '" alt="' + escapar(l.nombre) + '" loading="lazy">'
+      : portadaVaciaHTML(l.nombre);
+    var stockTexto = (!agotado && l.stock <= 3) ? '<span class="tarjeta__stock">Quedan ' + l.stock + "</span>" : "";
+    var accion;
+    if (agotado) accion = '<span class="boton boton--deshabilitado">Agotado</span>';
+    else if (enPedido) accion =
+      '<div class="cantidad" role="group" aria-label="Cantidad en el pedido">' +
+        '<button type="button" data-menos="' + l.id + '" aria-label="Quitar uno">−</button>' +
+        "<span>" + enPedido + " en pedido</span>" +
+        '<button type="button" data-mas="' + l.id + '" aria-label="Agregar uno">+</button>' +
+      "</div>";
+    else accion = '<button type="button" class="boton boton--acento" data-mas="' + l.id + '">Agregar<span class="solo-escritorio"> al pedido</span></button>';
 
-    var encabezados = filas.shift().map(function (h) { return sinTildes(h.trim()); });
-    return filas
-      .filter(function (f) { return f.some(function (v) { return v.trim() !== ""; }); })
-      .map(function (f) {
-        var o = {};
-        encabezados.forEach(function (h, idx) { o[h] = (f[idx] || "").trim(); });
-        return o;
-      });
-  }
-
-  // ---------- Portada de respaldo cuando no hay foto ----------
-  function portadaVacia(titulo) {
-    var div = document.createElement("div");
-    div.className = "tarjeta__sin-foto";
-    div.innerHTML =
-      '<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2.5Z"/><path d="M12 7v6M9 10h6"/></svg>' +
-      "<span>" + escapar(titulo) + "</span>";
-    return div;
-  }
-
-  // ---------- Pintar ----------
-  function pintarCategorias() {
-    var cats = ["Todas"];
-    libros.forEach(function (l) { if (l.categoria && cats.indexOf(l.categoria) === -1) cats.push(l.categoria); });
-    $categorias.innerHTML = "";
-    if (cats.length <= 2) return;
-    cats.forEach(function (c) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "chip" + (c === categoriaActiva ? " chip--activa" : "");
-      b.setAttribute("aria-pressed", c === categoriaActiva);
-      b.textContent = c;
-      b.addEventListener("click", function () { categoriaActiva = c; pintarCategorias(); pintarLibros(); });
-      $categorias.appendChild(b);
-    });
-  }
-
-  function pintarLibros() {
-    var q = sinTildes($buscar.value.trim());
-    var visibles = libros.filter(function (l) {
-      var okCat = categoriaActiva === "Todas" || l.categoria === categoriaActiva;
-      var okBusqueda = !q || sinTildes(l.nombre + " " + l.autor + " " + l.categoria).indexOf(q) !== -1;
-      return okCat && okBusqueda;
-    });
-
-    $grilla.innerHTML = "";
-    $estado.textContent = visibles.length ? "" : (libros.length ? "No encontramos libros con esa búsqueda." : "Pronto agregaremos libros al catálogo.");
-
-    visibles.forEach(function (l) {
-      var agotado = l.stock !== null && l.stock <= 0;
-      var art = document.createElement("article");
-      art.className = "tarjeta" + (agotado ? " tarjeta--agotada" : "");
-
-      var foto = document.createElement("div");
-      foto.className = "tarjeta__foto";
-      if (l.imagen) {
-        var img = document.createElement("img");
-        img.src = T.carpetaImagenes + encodeURI(l.imagen);
-        img.alt = l.nombre;
-        img.loading = "lazy";
-        img.onerror = function () { foto.innerHTML = ""; foto.appendChild(portadaVacia(l.nombre)); };
-        foto.appendChild(img);
-      } else {
-        foto.appendChild(portadaVacia(l.nombre));
-      }
-      if (agotado) {
-        var et = document.createElement("span");
-        et.className = "etiqueta";
-        et.textContent = "Agotado";
-        foto.appendChild(et);
-      }
-      art.appendChild(foto);
-
-      var cuerpo = document.createElement("div");
-      cuerpo.className = "tarjeta__cuerpo";
-      var stockTexto = (!agotado && l.stock !== null && l.stock <= 3) ? '<span class="tarjeta__stock">Quedan ' + l.stock + "</span>" : "";
-      cuerpo.innerHTML =
+    return '<article class="tarjeta' + (agotado ? " tarjeta--agotada" : "") + '">' +
+      '<div class="tarjeta__foto">' + foto + (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</div>" +
+      '<div class="tarjeta__cuerpo">' +
         (l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria) + "</p>" : "") +
         '<h2 class="tarjeta__titulo">' + escapar(l.nombre) + "</h2>" +
         (l.autor ? '<p class="tarjeta__autor">' + escapar(l.autor) + "</p>" : "") +
         (l.descripcion ? '<p class="tarjeta__descripcion">' + escapar(l.descripcion) + "</p>" : "") +
-        '<div class="tarjeta__pie"><span class="tarjeta__precio">' + formatoPrecio(l.precio) + "</span>" + stockTexto + "</div>";
+        '<div class="tarjeta__pie"><span class="tarjeta__precio">' + formatoPrecio(l.precio) + "</span>" + stockTexto + "</div>" +
+        accion +
+      "</div></article>";
+  }).join("");
+}
 
-      var btn = document.createElement(agotado ? "span" : "a");
-      btn.className = "boton boton--whatsapp" + (agotado ? " boton--deshabilitado" : "");
-      if (agotado) {
-        btn.textContent = "Agotado";
-      } else {
-        var msg = T.mensajeCompra
-          .replace("{libro}", l.nombre)
-          .replace(" de {autor}", l.autor ? " de " + l.autor : "")
-          .replace("{autor}", l.autor)
-          .replace(" ({precio})", l.precio !== null ? " (" + formatoPrecio(l.precio) + ")" : "")
-          .replace("{precio}", formatoPrecio(l.precio));
-        btn.href = enlaceWhatsApp(msg);
-        btn.target = "_blank";
-        btn.rel = "noopener";
-        btn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.8-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.2-.2-.4-.3Z"/></svg> Comprar';
-      }
-      cuerpo.appendChild(btn);
-      art.appendChild(cuerpo);
-      $grilla.appendChild(art);
-    });
+$grilla.addEventListener("click", function (e) {
+  var mas = e.target.closest("[data-mas]"), menos = e.target.closest("[data-menos]");
+  if (mas) {
+    var nuevo = !carrito[mas.dataset.mas];
+    cambiarCantidad(mas.dataset.mas, 1);
+    if (nuevo && carrito[mas.dataset.mas]) avisar("Agregado a tu pedido");
   }
+  if (menos) cambiarCantidad(menos.dataset.menos, -1);
+});
+$buscar.addEventListener("input", pintarLibros);
 
-  // ---------- Cargar ----------
-  $buscar.addEventListener("input", pintarLibros);
+// ---------- Pedido ----------
+function pintarCarrito() {
+  var items = itemsCarrito();
+  $("pedido-vacio").hidden = items.length > 0;
+  $("form-pedido").hidden = items.length === 0;
+  $("total-pedido").textContent = formatoPrecio(totalCarrito());
+  $("lista-pedido").innerHTML = items.map(function (it) {
+    var l = it.libro;
+    return '<li class="item-pedido">' +
+      '<div class="item-pedido__foto">' + (l.imagen ? '<img src="' + escapar(l.imagen) + '" alt="">' : "") + "</div>" +
+      '<div class="item-pedido__info"><strong>' + escapar(l.nombre) + "</strong>" +
+        (l.autor ? "<span>" + escapar(l.autor) + "</span>" : "") +
+        "<span>" + formatoPrecio(l.precio) + " c/u</span></div>" +
+      '<div class="cantidad cantidad--chica">' +
+        '<button type="button" data-menos="' + l.id + '" aria-label="Quitar uno">−</button>' +
+        "<span>" + it.cantidad + "</span>" +
+        '<button type="button" data-mas="' + l.id + '" aria-label="Agregar uno">+</button>' +
+      "</div></li>";
+  }).join("");
+}
 
-  fetch(T.catalogo + "?v=" + Date.now())
-    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
-    .then(function (texto) {
-      libros = leerCSV(texto).map(function (f) {
-        return {
-          nombre: f.nombre,
-          autor: f.autor,
-          categoria: f.categoria,
-          precio: aNumero(f.precio),
-          stock: aNumero(f.stock),
-          descripcion: f.descripcion,
-          imagen: f.imagen
-        };
-      }).filter(function (l) { return l.nombre; });
-      pintarCategorias();
-      pintarLibros();
-    })
-    .catch(function () {
-      $estado.textContent = "No se pudo cargar el catálogo. Intenta recargar la página.";
-    });
-})();
+$("lista-pedido").addEventListener("click", function (e) {
+  var mas = e.target.closest("[data-mas]"), menos = e.target.closest("[data-menos]");
+  if (mas) cambiarCantidad(mas.dataset.mas, 1);
+  if (menos) cambiarCantidad(menos.dataset.menos, -1);
+});
+
+function abrirCajon() {
+  $("vista-carrito").hidden = false;
+  $("vista-confirmacion").hidden = true;
+  pintarCarrito();
+  if ($cajon.showModal) $cajon.showModal(); else $cajon.setAttribute("open", "");
+}
+function cerrarCajon() { if ($cajon.close) $cajon.close(); else $cajon.removeAttribute("open"); }
+
+$("abrir-pedido").addEventListener("click", abrirCajon);
+$cajon.addEventListener("click", function (e) {
+  if (e.target.closest("[data-cerrar]") || e.target === $cajon) cerrarCajon();
+});
+
+function mensajeWhatsApp(codigo, items, total, cliente) {
+  var lineas = ["Hola, quiero hacer este pedido" + (codigo ? " (" + codigo + ")" : "") + ":", ""];
+  items.forEach(function (it) {
+    lineas.push("• " + it.cantidad + " × " + it.nombre + (it.autor ? " (" + it.autor + ")" : "") + " — " + formatoPrecio(it.precio * it.cantidad));
+  });
+  lineas.push("", "Total: " + formatoPrecio(total), "", "Nombre: " + cliente.nombre, "Teléfono: " + cliente.telefono);
+  if (cliente.notas) lineas.push("Notas: " + cliente.notas);
+  return lineas.join("\n");
+}
+
+$("form-pedido").addEventListener("submit", function (e) {
+  e.preventDefault();
+  var f = e.target;
+  var $btn = $("enviar-pedido"), $err = $("error-pedido");
+  limpiarCarrito();
+  var items = itemsCarrito().map(function (it) {
+    return { id: it.libro.id, nombre: it.libro.nombre, autor: it.libro.autor || "", precio: it.libro.precio || 0, cantidad: it.cantidad };
+  });
+  if (!items.length) { pintarCarrito(); return; }
+  var cliente = {
+    nombre: f.nombre.value.trim().slice(0, 80),
+    telefono: f.telefono.value.trim().slice(0, 20),
+    notas: f.notas.value.trim().slice(0, 300)
+  };
+  var total = items.reduce(function (s, it) { return s + it.precio * it.cantidad; }, 0);
+
+  $btn.disabled = true; $btn.textContent = "Guardando pedido…"; $err.hidden = true;
+
+  addDoc(collection(db, "pedidos"), {
+    cliente: cliente, items: items, total: total,
+    estado: "pendiente", stockDescontado: false, creado: serverTimestamp()
+  }).then(function (ref) {
+    mostrarConfirmacion(codigoPedido(ref.id), items, total, cliente);
+  }).catch(function () {
+    // Si no se pudo guardar, igual dejamos enviar el pedido por WhatsApp.
+    mostrarConfirmacion("", items, total, cliente);
+  }).finally(function () {
+    $btn.disabled = false; $btn.textContent = "Continuar a WhatsApp";
+  });
+});
+
+function mostrarConfirmacion(codigo, items, total, cliente) {
+  $("codigo-pedido").textContent = codigo;
+  $("link-whatsapp").href = enlaceWhatsApp(T.whatsapp, mensajeWhatsApp(codigo, items, total, cliente));
+  $("vista-carrito").hidden = true;
+  $("vista-confirmacion").hidden = false;
+  carrito = {}; guardarCarrito(); pintarContador(); pintarLibros();
+  $("form-pedido").reset();
+}
+
+// ---------- Cargar catálogo ----------
+if (!configurado) {
+  $estado.textContent = "La tienda se está configurando. Vuelve pronto.";
+} else {
+  Promise.all([
+    getDocs(query(collection(db, "libros"), where("activo", "==", true))),
+    getDocs(collection(db, "categorias")).catch(function () { return null; })
+  ]).then(function (res) {
+    libros = res[0].docs.map(function (d) {
+      var x = d.data();
+      return {
+        id: d.id, nombre: x.nombre || "", autor: x.autor || "", categoria: x.categoria || "",
+        precio: typeof x.precio === "number" ? x.precio : null,
+        stock: typeof x.stock === "number" ? x.stock : 0,
+        descripcion: x.descripcion || "", imagen: x.imagen || ""
+      };
+    }).sort(function (a, b) { return a.nombre.localeCompare(b.nombre, "es"); });
+    if (res[1]) {
+      ordenCategorias = res[1].docs.map(function (d) { return d.data(); })
+        .sort(function (a, b) { return (a.orden || 0) - (b.orden || 0) || String(a.nombre).localeCompare(b.nombre, "es"); })
+        .map(function (c) { return c.nombre; });
+    }
+    limpiarCarrito();
+    pintarContador();
+    pintarCategorias();
+    pintarLibros();
+  }).catch(function () {
+    $estado.textContent = "No se pudo cargar el catálogo. Intenta recargar la página.";
+  });
+}
