@@ -270,7 +270,10 @@ function galeriaHTML(l, agotado) {
     (agotado ? '<span class="etiqueta">Agotado</span>' : "") +
     (n ? '<button type="button" class="galeria__flecha galeria__flecha--izq" data-galeria="-1" aria-label="Foto anterior">‹</button>' +
          '<button type="button" class="galeria__flecha galeria__flecha--der" data-galeria="1" aria-label="Foto siguiente">›</button>' +
-         '<button type="button" class="galeria__ampliar" data-ampliar aria-label="Ver foto en grande">⤢</button>' : "") +
+         '<button type="button" class="galeria__ampliar" data-ampliar aria-label="Ver foto en grande">' +
+           '<svg class="icono-ampliar" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.6-4.6M10.5 7.8v5.4M7.8 10.5h5.4"/></svg>' +
+           '<svg class="icono-cerrar" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>' +
+         "</button>" : "") +
     "</div>";
   if (n) {
     html += '<div class="galeria__miniaturas">' +

@@ -425,5 +425,18 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 }
 @media (max-width: 640px) { .galeria__slide--portada img { object-fit: contain; } }
 .detalle:has(.galeria--ampliada) .detalle__cerrar { display: none; }
-.galeria--ampliada .galeria__ampliar { font-size: 0; }
-.galeria--ampliada .galeria__ampliar::before { content: "×"; font-size: 1.6rem; line-height: 1; }
+
+/* Vista ampliada: la foto se muestra como máximo a su tamaño real (no se estira ni se pixela) */
+.galeria__ampliar { padding: 0; }
+.galeria__ampliar .icono-cerrar { display: none; }
+.galeria--ampliada .galeria__ampliar .icono-ampliar { display: none; }
+.galeria--ampliada .galeria__ampliar .icono-cerrar { display: block; }
+.galeria--ampliada { background: rgba(8, 14, 30, .95); }
+.galeria--ampliada .galeria__slide { padding: 48px 56px; }
+.galeria--ampliada .galeria__slide img {
+  width: auto; height: auto; max-width: min(100%, 900px); max-height: 100%;
+  object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0, 0, 0, .45); background: #fff;
+}
+@media (max-width: 640px) {
+  .galeria--ampliada .galeria__slide { padding: 56px 12px; }
+}
