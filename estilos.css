@@ -332,3 +332,12 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 @media (max-width: 520px) { .titulo-grilla h2 { font-size: 1.05rem; } }
 .tarjeta--compacta .tarjeta__stock { white-space: nowrap; font-size: .72rem; }
 @media (max-width: 520px) { .tarjeta--compacta .tarjeta__stock { display: none; } }
+
+/* Botón "Ver todos los libros" */
+.ver-todo-fila { display: flex; justify-content: center; margin: -28px 0 48px; }
+.ver-todo { border-color: var(--acento); color: var(--acento); min-height: 48px; padding: 0 28px; font-size: 1rem; }
+.ver-todo:hover { background: var(--acento); color: #fff; }
+.ver-todo[hidden] + * { display: none; }
+.volver-inicio { margin-left: auto; background: none; border: 0; color: var(--acento); font: 600 .9rem "Inter", sans-serif; cursor: pointer; }
+.volver-inicio:hover { text-decoration: underline; }
+@media (max-width: 520px) { .ver-todo { width: 100%; } .ver-todo-fila { margin-top: -40px; } }

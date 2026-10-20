@@ -148,8 +148,11 @@ function pintarCategorias() {
   pintarSubcategorias();
 }
 
+var verTodo = false;        // true = lista completa sin carruseles
+var FILAS_INICIO = 3;      // filas de "Todos los libros" en la página principal
+
 function elegirCategoria(c, desplazar) {
-  categoriaActiva = c; subcategoriaActiva = "";
+  categoriaActiva = c; subcategoriaActiva = ""; verTodo = false;
   pintarCategorias(); pintarLibros();
   if (desplazar) document.querySelector(".controles").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -185,7 +188,7 @@ function accionHTML(l, grande) {
     '<button type="button" data-mas="' + l.id + '" aria-label="Agregar uno">+</button>' +
     "</div>";
   return '<button type="button" class="boton boton--acento" data-mas="' + l.id + '">' +
-    (grande ? "Agregar al pedido" : 'Agregar<span class="solo-escritorio"> al pedido</span>') + "</button>";
+    (grande ? "Agregar al pedido" : '<span>Agregar<span class="solo-escritorio"> al pedido</span></span>') + "</button>";
 }
 
 // ---------- Ficha del libro ----------
@@ -247,8 +250,14 @@ function pintarLibros() {
     return okCat && okBusqueda;
   });
 
-  var inicio = categoriaActiva === "Todas" && !q;
+  var inicio = categoriaActiva === "Todas" && !q && !verTodo;
   pintarSecciones(inicio);
+  // En la página principal (con carruseles) se muestran solo unas filas de "Todos los libros".
+  var recortar = inicio && libros.length >= 6;
+  var mostrar = recortar ? visibles.slice(0, FILAS_INICIO * columnasGrilla()) : visibles;
+  $("ver-todo").hidden = !(recortar && mostrar.length < visibles.length);
+  $("ver-todo").textContent = "Ver todos los libros (" + visibles.length + ") →";
+  $("volver-inicio").hidden = !(verTodo && categoriaActiva === "Todas" && !q);
   $("titulo-grilla").hidden = !libros.length;
   $("titulo-grilla-texto").textContent = q ? "Resultados de la búsqueda"
     : inicio ? "Todos los libros"
@@ -256,9 +265,30 @@ function pintarLibros() {
   $("titulo-grilla-cuenta").textContent = visibles.length + " libro" + (visibles.length === 1 ? "" : "s");
 
   $estado.textContent = visibles.length ? "" : (libros.length ? "No encontramos libros con esa búsqueda." : "Pronto agregaremos libros al catálogo.");
-  $grilla.innerHTML = visibles.map(function (l) { return tarjetaHTML(l, false); }).join("");
+  $grilla.innerHTML = mostrar.map(function (l) { return tarjetaHTML(l, false); }).join("");
+  $grilla.dataset.columnas = columnasGrilla();
   observarFotos($grilla);
 }
+
+// Cuántos libros caben por fila en la cuadrícula según el ancho de la pantalla.
+function columnasGrilla() {
+  var cols = getComputedStyle($grilla).gridTemplateColumns.split(" ").filter(Boolean).length;
+  return cols || 4;
+}
+window.addEventListener("resize", function () {
+  if (!$("ver-todo").hidden && String(columnasGrilla()) !== $grilla.dataset.columnas) pintarLibros();
+});
+
+$("ver-todo").addEventListener("click", function () {
+  verTodo = true;
+  pintarLibros();
+  document.querySelector(".controles").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+$("volver-inicio").addEventListener("click", function () {
+  verTodo = false;
+  pintarLibros();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
 
 function tarjetaHTML(l, compacta) {
   var agotado = l.stock <= 0;
