@@ -241,8 +241,16 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
   .detalle__foto img { object-fit: contain; }
   .detalle__info { padding: 20px 16px 24px; }
 }
+/* La ficha técnica va debajo de la foto en computador, y después de la descripción en celular */
+.detalle__lado { display: flex; flex-direction: column; background: var(--superficie); }
+.detalle__lado .detalle__datos--lado { margin: 0; padding: 16px 24px 20px; border-top: 1px solid var(--borde); background: var(--fondo); flex: 1; }
+.detalle__lado .detalle__datos--lado div { grid-template-columns: 100px 1fr; }
 @media (min-width: 641px) {
-  .detalle__foto { position: sticky; top: 0; align-self: start; }
+  .detalle__lado { position: sticky; top: 0; align-self: start; }
+  .detalle__info .detalle__datos--info { display: none; }
+}
+@media (max-width: 640px) {
+  .detalle__lado .detalle__datos--lado { display: none; }
 }
 
 /* Fotos que se cargan al aparecer en pantalla */

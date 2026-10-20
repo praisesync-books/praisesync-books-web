@@ -198,8 +198,11 @@ function pintarDetalle() {
   if (!l) return;
   var agotado = l.stock <= 0;
   $("detalle-contenido").innerHTML =
-    '<div class="detalle__foto">' + fotoHTML(l, l.nombre) +
-      (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</div>" +
+    '<div class="detalle__lado">' +
+      '<div class="detalle__foto">' + fotoHTML(l, l.nombre) +
+        (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</div>" +
+      datosHTML(l, "detalle__datos--lado") +
+    "</div>" +
     '<div class="detalle__info">' +
       (l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria + (l.subcategoria ? " › " + l.subcategoria : "")) + "</p>" : "") +
       '<h2 class="detalle__titulo">' + escapar(l.nombre) + "</h2>" +
@@ -207,10 +210,7 @@ function pintarDetalle() {
       '<p class="detalle__precio">' + formatoPrecio(l.precio) +
         (!agotado && l.stock <= 3 ? ' <span class="tarjeta__stock">Quedan ' + l.stock + "</span>" : "") + "</p>" +
       (l.descripcion ? '<p class="detalle__descripcion">' + escapar(l.descripcionCompleta || l.descripcion) + "</p>" : "") +
-      ((l.editorial || l.isbn) ? '<dl class="detalle__datos">' +
-        (l.editorial ? "<div><dt>Editorial</dt><dd>" + escapar(l.editorial) + "</dd></div>" : "") +
-        (l.isbn ? "<div><dt>ISBN</dt><dd>" + escapar(l.isbn) + "</dd></div>" : "") +
-        "</dl>" : "") +
+      datosHTML(l, "detalle__datos--info") +
       '<div class="detalle__accion">' + accionHTML(l, true) +
         '<button type="button" class="boton boton--contorno boton--compartir" data-compartir="' + l.id + '">' +
           '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>' +
@@ -229,6 +229,26 @@ function pintarDetalle() {
 }
 var TITULO_BASE = document.title;
 var BASE_TIENDA = location.href.replace(/[?#].*$/, "");
+// Ficha técnica del libro: solo se muestran los datos que tenga.
+function textoPeso(g) {
+  if (!g) return "";
+  return g >= 1000 ? (g / 1000).toLocaleString("es-CO", { maximumFractionDigits: 2 }) + " kg" : g + " g";
+}
+function datosHTML(l, clase) {
+  var filas = [
+    ["Editorial", l.editorial],
+    ["ISBN", l.isbn],
+    ["Páginas", l.paginas ? Number(l.paginas).toLocaleString("es-CO") : ""],
+    ["Cubierta", l.cubierta],
+    ["Dimensiones", l.dimensiones ? l.dimensiones + " cm" : ""],
+    ["Peso", textoPeso(l.peso)]
+  ].filter(function (f) { return f[1]; });
+  if (!filas.length) return "";
+  return '<dl class="detalle__datos ' + clase + '">' + filas.map(function (f) {
+    return "<div><dt>" + f[0] + "</dt><dd>" + escapar(f[1]) + "</dd></div>";
+  }).join("") + "</dl>";
+}
+
 function abrirDetalle(id) {
   libroEnDetalle = id;
   pintarDetalle();
@@ -548,6 +568,7 @@ function normalizar(x, id) {
   return {
     id: id || x.id, nombre: x.nombre || "", autor: x.autor || "", categoria: x.categoria || "",
     subcategoria: x.subcategoria || "", editorial: x.editorial || "", isbn: x.isbn || "",
+    paginas: x.paginas || 0, peso: x.peso || 0, dimensiones: x.dimensiones || "", cubierta: x.cubierta || "",
     precio: typeof x.precio === "number" ? x.precio : null,
     stock: typeof x.stock === "number" ? x.stock : 0,
     descripcion: x.resumen !== undefined ? x.resumen : (x.descripcion || ""),
