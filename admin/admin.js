@@ -142,6 +142,7 @@ document.addEventListener("click", function (e) {
 // La tienda lee un solo documento (tienda/catalogo) con el resumen de todos los libros visibles:
 // 1 lectura por visita en vez de una por libro. Se vuelve a publicar después de cada cambio.
 var LARGO_RESUMEN = 240;
+function msDe(ts) { return ts && ts.toMillis ? ts.toMillis() : (typeof ts === "number" ? ts : 0); }
 function resumenDe(texto) {
   texto = String(texto || "");
   if (texto.length <= LARGO_RESUMEN) return texto;
@@ -155,12 +156,14 @@ function armarCatalogo() {
       var d = String(l.descripcion || "");
       return {
         id: l.id, nombre: l.nombre || "", autor: l.autor || "", categoria: l.categoria || "",
-        editorial: l.editorial || "", isbn: l.isbn || "",
+        subcategoria: l.subcategoria || "", editorial: l.editorial || "", isbn: l.isbn || "",
         precio: typeof l.precio === "number" ? l.precio : 0, stock: l.stock || 0,
-        resumen: resumenDe(d), larga: d.length > LARGO_RESUMEN, foto: l.foto || 0
+        resumen: resumenDe(d), larga: d.length > LARGO_RESUMEN, foto: l.foto || 0,
+        destacado: !!l.destacado, creado: msDe(l.creado) || l.creadoMs || 0
       };
     }),
     categorias: categorias.map(function (c) { return c.nombre; }),
+    subcategorias: categorias.reduce(function (m, c) { if (subsDe(c).length) m[c.nombre] = subsDe(c); return m; }, {}),
     actualizado: serverTimestamp()
   };
 }
@@ -499,7 +502,7 @@ function cambiarEstado(pedidoId, nuevo) {
 function pintarLibros() {
   var q = sinTildes($("buscar-libros").value.trim());
   var lista = libros.filter(function (l) {
-    var texto = sinTildes([l.nombre, l.autor, l.categoria, l.editorial, l.isbn, soloDigitos(l.isbn)].join(" "));
+    var texto = sinTildes([l.nombre, l.autor, l.categoria, l.subcategoria, l.editorial, l.isbn, soloDigitos(l.isbn)].join(" "));
     var qISBN = /^[\d\s-]{6,}x?$/.test(q) ? q.replace(/[\s-]/g, "") : "";
     return !q || texto.indexOf(q) !== -1 || (qISBN && texto.indexOf(qISBN) !== -1);
   });
@@ -513,8 +516,8 @@ function pintarLibros() {
         (l.foto ? '<span class="foto-perezosa" data-portada="' + l.id + '">' + portadaVaciaHTML("") + "</span>" : portadaVaciaHTML("")) + "</button>" +
       '<button type="button" class="fila-libro__info" data-editar="' + l.id + '">' +
         "<strong>" + escapar(l.nombre) + "</strong>" +
-        "<span>" + escapar([l.autor, l.editorial, l.categoria].filter(Boolean).join(" · ")) + "</span>" +
-        "<span>" + formatoPrecio(l.precio) + (l.activo === false ? ' · <em>Oculto</em>' : "") + "</span>" +
+        "<span>" + escapar([l.autor, l.editorial, [l.categoria, l.subcategoria].filter(Boolean).join(" › ")].filter(Boolean).join(" · ")) + "</span>" +
+        "<span>" + formatoPrecio(l.precio) + (l.destacado ? " · ⭐ Destacado" : "") + (l.activo === false ? ' · <em>Oculto</em>' : "") + "</span>" +
       "</button>" +
       '<div class="fila-libro__stock">' +
         '<span class="fila-libro__etiqueta">Stock</span>' +
@@ -573,11 +576,31 @@ function opcionesCategoria(actual) {
     '<option value="__nueva">+ Nueva categoría…</option>';
 }
 
+function opcionesSubcategoria(actual) {
+  var $s = $("select-subcategoria");
+  var cat = categoriaPorNombre($("select-categoria").value);
+  var nombres = cat ? subsDe(cat).slice() : [];
+  if (actual && nombres.indexOf(actual) === -1) nombres.push(actual);
+  $s.disabled = !cat;
+  $s.innerHTML = '<option value="">' + (cat ? "Sin subcategoría" : "Elige primero una categoría") + "</option>" +
+    nombres.map(function (n) { return "<option" + (n === actual ? " selected" : "") + ">" + escapar(n) + "</option>"; }).join("") +
+    (cat ? '<option value="__nueva">+ Nueva subcategoría…</option>' : "");
+}
+
 $("select-categoria").addEventListener("change", function (e) {
-  if (e.target.value !== "__nueva") return;
+  if (e.target.value !== "__nueva") { opcionesSubcategoria(""); return; }
   var nombre = (prompt("Nombre de la nueva categoría") || "").trim().slice(0, 40);
-  if (!nombre) { e.target.value = ""; return; }
-  crearCategoria(nombre).then(function () { opcionesCategoria(nombre); })
+  if (!nombre) { e.target.value = ""; opcionesSubcategoria(""); return; }
+  crearCategoria(nombre).then(function () { opcionesCategoria(nombre); opcionesSubcategoria(""); })
+    .catch(function (err) { e.target.value = ""; avisar(mensajeError(err), true); });
+});
+
+$("select-subcategoria").addEventListener("change", function (e) {
+  if (e.target.value !== "__nueva") return;
+  var cat = categoriaPorNombre($("select-categoria").value);
+  var nombre = (prompt("Nueva subcategoría dentro de \"" + (cat ? cat.nombre : "") + "\"") || "").trim().slice(0, 40);
+  if (!nombre || !cat) { e.target.value = ""; return; }
+  crearSubcategoria(cat, nombre).then(function (final) { opcionesSubcategoria(final); })
     .catch(function (err) { e.target.value = ""; avisar(mensajeError(err), true); });
 });
 
@@ -610,7 +633,9 @@ function abrirEditor(id) {
   $form.stock.value = l ? (l.stock || 0) : 0;
   $form.descripcion.value = l ? l.descripcion || "" : "";
   $form.activo.checked = l ? l.activo !== false : true;
+  $form.destacado.checked = l ? !!l.destacado : false;
   opcionesCategoria(l ? l.categoria || "" : "");
+  opcionesSubcategoria(l ? l.subcategoria || "" : "");
   $("borrar-libro").hidden = !l;
   $("error-libro").hidden = true;
   pintarFoto();
@@ -680,10 +705,12 @@ $form.addEventListener("submit", function (e) {
     editorial: $form.editorial.value.trim(),
     isbn: limpiarISBN($form.isbn.value),
     categoria: $form.categoria.value === "__nueva" ? "" : $form.categoria.value,
+    subcategoria: ($form.categoria.value && $form.subcategoria.value !== "__nueva") ? $form.subcategoria.value : "",
     precio: precio,
     stock: Math.max(0, parseInt($form.stock.value, 10) || 0),
     descripcion: $form.descripcion.value.trim(),
     activo: $form.activo.checked,
+    destacado: $form.destacado.checked,
     actualizado: serverTimestamp()
   };
   var cambioFoto = fotoEditando !== fotoOriginal;
@@ -704,6 +731,7 @@ $form.addEventListener("submit", function (e) {
   b.commit().then(function () {
     var copia = Object.assign({}, datos, { id: id });
     delete copia.actualizado;
+    if (esNuevo) copia.creadoMs = Date.now();
     if (local) Object.assign(local, copia); else libros.push(copia);
     libros.sort(function (a, c) { return String(a.nombre).localeCompare(c.nombre, "es"); });
     if (cambioFoto) fotos[id] = fotoEditando;
@@ -762,7 +790,11 @@ $("archivo-csv").addEventListener("change", function (e) {
         if (/e\+/i.test(f.isbn)) isbnDanados.push(f.nombre);
         else datos.isbn = limpiarISBN(f.isbn);
       }
-      if (datos.categoria) cats[datos.categoria] = true;
+      if (f.subcategoria !== undefined) datos.subcategoria = datos.categoria ? f.subcategoria : "";
+      if (datos.categoria) {
+        cats[datos.categoria] = cats[datos.categoria] || {};
+        if (datos.subcategoria) cats[datos.categoria][datos.subcategoria] = true;
+      }
       var id = (datos.isbn && porISBN[soloDigitos(datos.isbn)]) || existentes[sinTildes(f.nombre + "|" + (f.autor || ""))];
       if (id) { actualizados++; return { id: id, datos: datos }; }
       nuevos++;
@@ -792,9 +824,22 @@ $("archivo-csv").addEventListener("change", function (e) {
     var faltan = Object.keys(cats).filter(function (n) { return !categorias.some(function (c) { return c.nombre === n; }); });
     cadena.then(function () { return faltan.reduce(function (p, n) { return p.then(function () { return crearCategoria(n); }); }, Promise.resolve()); })
       .then(function () {
+        // Subcategorías nuevas que trae el archivo
+        return Object.keys(cats).reduce(function (p, n) {
+          return p.then(function () {
+            var cat = categoriaPorNombre(n);
+            var nuevas = Object.keys(cats[n]).filter(function (s) { return cat && subsDe(cat).indexOf(s) === -1; });
+            if (!nuevas.length) return;
+            return updateDoc(doc(db, "categorias", cat.id), { subcategorias: subsDe(cat).concat(nuevas) })
+              .then(function () { cat.subcategorias = subsDe(cat).concat(nuevas); });
+          });
+        }, Promise.resolve());
+      })
+      .then(function () {
         operaciones.forEach(function (op) {
           var copia = Object.assign({}, op.datos, { id: op.id });
           delete copia.actualizado; delete copia.creado;
+          if (op.nuevo) copia.creadoMs = Date.now();
           var local = libros.find(function (x) { return x.id === op.id; });
           if (local) Object.assign(local, copia); else libros.push(copia);
         });
@@ -807,6 +852,21 @@ $("archivo-csv").addEventListener("change", function (e) {
 });
 
 // ---------- Categorías ----------
+function subsDe(c) { return (c && Array.isArray(c.subcategorias)) ? c.subcategorias : []; }
+function categoriaPorNombre(n) { return categorias.find(function (c) { return c.nombre === n; }); }
+
+// Crea una subcategoría (si ya existe con otro uso de mayúsculas o tildes, devuelve la existente).
+function crearSubcategoria(cat, nombre) {
+  var igual = subsDe(cat).find(function (s) { return sinTildes(s) === sinTildes(nombre); });
+  if (igual) return Promise.resolve(igual);
+  var lista = subsDe(cat).concat([nombre]);
+  return updateDoc(doc(db, "categorias", cat.id), { subcategorias: lista }).then(function () {
+    cat.subcategorias = lista;
+    programarPublicacion();
+    return nombre;
+  });
+}
+
 function crearCategoria(nombre) {
   if (categorias.some(function (c) { return sinTildes(c.nombre) === sinTildes(nombre); })) return Promise.resolve();
   var orden = categorias.reduce(function (m, c) { return Math.max(m, c.orden || 0); }, 0) + 1;
@@ -828,6 +888,19 @@ function pintarCategorias() {
       '<div class="categoria-fila__nombre"><strong>' + escapar(c.nombre) + "</strong><span>" + n + " libro" + (n === 1 ? "" : "s") + "</span></div>" +
       '<button type="button" class="boton boton--texto" data-renombrar="' + c.id + '">Renombrar</button>' +
       '<button type="button" class="boton boton--texto texto-error" data-borrar-cat="' + c.id + '">Eliminar</button>' +
+      '<div class="subcategorias">' +
+        subsDe(c).map(function (s, k) {
+          var ns = libros.filter(function (l) { return l.categoria === c.nombre && l.subcategoria === s; }).length;
+          return '<div class="subcategoria">' +
+            '<span class="subcategoria__nombre">' + escapar(s) + " <small>" + ns + "</small></span>" +
+            '<button type="button" class="icono-boton icono-boton--mini" data-sub-mover="' + c.id + '" data-k="' + k + '" data-dir="-1" aria-label="Subir"' + (k === 0 ? " disabled" : "") + ">↑</button>" +
+            '<button type="button" class="icono-boton icono-boton--mini" data-sub-mover="' + c.id + '" data-k="' + k + '" data-dir="1" aria-label="Bajar"' + (k === subsDe(c).length - 1 ? " disabled" : "") + ">↓</button>" +
+            '<button type="button" class="boton boton--texto boton--mini" data-sub-renombrar="' + c.id + '" data-k="' + k + '">Renombrar</button>' +
+            '<button type="button" class="boton boton--texto boton--mini texto-error" data-sub-borrar="' + c.id + '" data-k="' + k + '">Eliminar</button>' +
+          "</div>";
+        }).join("") +
+        '<button type="button" class="boton boton--texto boton--mini" data-sub-nueva="' + c.id + '">+ Subcategoría</button>' +
+      "</div>" +
     "</li>";
   }).join("");
 }
@@ -841,6 +914,63 @@ $("form-categoria").addEventListener("submit", function (e) {
 });
 
 $("lista-categorias").addEventListener("click", function (e) {
+  var catDe = function (el, attr) { return categorias.find(function (x) { return x.id === el.dataset[attr]; }); };
+  var nueva = e.target.closest("[data-sub-nueva]");
+  if (nueva) {
+    var cn = catDe(nueva, "subNueva");
+    var nom = (prompt("Nueva subcategoría dentro de \"" + cn.nombre + "\"") || "").trim().slice(0, 40);
+    if (!nom) return;
+    crearSubcategoria(cn, nom).then(function () { pintarCategorias(); avisar("Subcategoría creada"); })
+      .catch(function (err) { avisar(mensajeError(err), true); });
+    return;
+  }
+  var smv = e.target.closest("[data-sub-mover]");
+  if (smv) {
+    var cm = catDe(smv, "subMover"), k = parseInt(smv.dataset.k, 10), j2 = k + parseInt(smv.dataset.dir, 10);
+    var lista = subsDe(cm).slice();
+    if (j2 < 0 || j2 >= lista.length) return;
+    var tmp = lista[k]; lista[k] = lista[j2]; lista[j2] = tmp;
+    updateDoc(doc(db, "categorias", cm.id), { subcategorias: lista })
+      .then(function () { cm.subcategorias = lista; pintarCategorias(); programarPublicacion(); })
+      .catch(function (err) { avisar(mensajeError(err), true); });
+    return;
+  }
+  var srn = e.target.closest("[data-sub-renombrar]");
+  if (srn) {
+    var cr = catDe(srn, "subRenombrar"), kr = parseInt(srn.dataset.k, 10), viejo = subsDe(cr)[kr];
+    var nv = (prompt("Nuevo nombre para \"" + viejo + "\"", viejo) || "").trim().slice(0, 40);
+    if (!nv || nv === viejo) return;
+    if (subsDe(cr).some(function (s, i) { return i !== kr && sinTildes(s) === sinTildes(nv); })) { avisar("Ya existe esa subcategoría", true); return; }
+    var listaR = subsDe(cr).slice(); listaR[kr] = nv;
+    var afectados = libros.filter(function (l) { return l.categoria === cr.nombre && l.subcategoria === viejo; });
+    var lr = writeBatch(db);
+    lr.update(doc(db, "categorias", cr.id), { subcategorias: listaR });
+    afectados.forEach(function (l) { lr.update(doc(db, "libros", l.id), { subcategoria: nv }); });
+    lr.commit().then(function () {
+      cr.subcategorias = listaR;
+      afectados.forEach(function (l) { l.subcategoria = nv; });
+      pintarCategorias(); avisar("Subcategoría renombrada"); publicarCatalogo();
+    }).catch(function (err) { avisar(mensajeError(err), true); });
+    return;
+  }
+  var sdel = e.target.closest("[data-sub-borrar]");
+  if (sdel) {
+    var cd = catDe(sdel, "subBorrar"), kd = parseInt(sdel.dataset.k, 10), nomD = subsDe(cd)[kd];
+    var conSub = libros.filter(function (l) { return l.categoria === cd.nombre && l.subcategoria === nomD; });
+    if (!confirm(conSub.length
+      ? "\"" + nomD + "\" tiene " + conSub.length + " libro(s). Si la eliminas, siguen en \"" + cd.nombre + "\" pero sin subcategoría. ¿Continuar?"
+      : "¿Eliminar la subcategoría \"" + nomD + "\"?")) return;
+    var listaD = subsDe(cd).filter(function (s, i) { return i !== kd; });
+    var ld = writeBatch(db);
+    ld.update(doc(db, "categorias", cd.id), { subcategorias: listaD });
+    conSub.forEach(function (l) { ld.update(doc(db, "libros", l.id), { subcategoria: "" }); });
+    ld.commit().then(function () {
+      cd.subcategorias = listaD;
+      conSub.forEach(function (l) { l.subcategoria = ""; });
+      pintarCategorias(); avisar("Subcategoría eliminada"); publicarCatalogo();
+    }).catch(function (err) { avisar(mensajeError(err), true); });
+    return;
+  }
   var mv = e.target.closest("[data-mover]");
   if (mv) {
     var i = parseInt(mv.dataset.mover, 10), j = i + parseInt(mv.dataset.dir, 10);
@@ -879,9 +1009,9 @@ $("lista-categorias").addEventListener("click", function (e) {
     if (!confirm(aviso)) return;
     var lote2 = writeBatch(db);
     lote2.delete(doc(db, "categorias", cat.id));
-    usados.forEach(function (l) { lote2.update(doc(db, "libros", l.id), { categoria: "" }); });
+    usados.forEach(function (l) { lote2.update(doc(db, "libros", l.id), { categoria: "", subcategoria: "" }); });
     lote2.commit().then(function () {
-        usados.forEach(function (l) { l.categoria = ""; });
+        usados.forEach(function (l) { l.categoria = ""; l.subcategoria = ""; });
         return cargarCategorias();
       })
       .then(function () { pintarCategorias(); avisar("Categoría eliminada"); publicarCatalogo(); })

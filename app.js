@@ -6,6 +6,8 @@ var T = window.TIENDA;
 var libros = [];          // [{id, nombre, autor, categoria, precio, stock, descripcion, imagen}]
 var ordenCategorias = []; // nombres en el orden definido en el panel
 var categoriaActiva = "Todas";
+var subcategoriaActiva = "";
+var subsPorCategoria = {};  // { categoría: [subcategorías en orden] }
 var carrito = cargarCarrito(); // { idLibro: cantidad }
 
 var $ = function (id) { return document.getElementById(id); };
@@ -55,9 +57,18 @@ function cambiarCantidad(id, delta) {
   else carrito[id] = nueva;
   guardarCarrito();
   pintarContador();
-  pintarLibros();
+  actualizarAcciones(id);
   pintarCarrito();
   if (libroEnDetalle && $detalle.open) pintarDetalle();
+}
+
+// Cambia solo los botones de "Agregar" de un libro (o de todos), sin redibujar la página,
+// para que los carruseles no pierdan su posición.
+function actualizarAcciones(id) {
+  document.querySelectorAll(id ? '[data-accion="' + id + '"]' : "[data-accion]").forEach(function (el) {
+    var l = libroPorId(el.dataset.accion);
+    if (l) el.innerHTML = accionHTML(l, false);
+  });
 }
 
 function avisar(texto) {
@@ -129,8 +140,37 @@ function pintarCategorias() {
     b.className = "chip" + (c === categoriaActiva ? " chip--activa" : "");
     b.setAttribute("aria-pressed", c === categoriaActiva);
     b.textContent = c;
-    b.addEventListener("click", function () { categoriaActiva = c; pintarCategorias(); pintarLibros(); });
+    b.addEventListener("click", function () { elegirCategoria(c); });
     $categorias.appendChild(b);
+  });
+  pintarSubcategorias();
+}
+
+function elegirCategoria(c, desplazar) {
+  categoriaActiva = c; subcategoriaActiva = "";
+  pintarCategorias(); pintarLibros();
+  if (desplazar) document.querySelector(".controles").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// Segunda fila de botones con las subcategorías de la categoría elegida.
+function pintarSubcategorias() {
+  var $s = $("subcategorias");
+  $s.innerHTML = "";
+  if (categoriaActiva === "Todas") { $s.hidden = true; return; }
+  var enUso = libros.filter(function (l) { return l.categoria === categoriaActiva && l.subcategoria; })
+    .map(function (l) { return l.subcategoria; });
+  var subs = (subsPorCategoria[categoriaActiva] || []).filter(function (s) { return enUso.indexOf(s) !== -1; });
+  enUso.forEach(function (s) { if (subs.indexOf(s) === -1) subs.push(s); });
+  if (!subs.length) { $s.hidden = true; return; }
+  $s.hidden = false;
+  [""].concat(subs).forEach(function (s) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip chip--sub" + (s === subcategoriaActiva ? " chip--activa" : "");
+    b.setAttribute("aria-pressed", s === subcategoriaActiva);
+    b.textContent = s || "Todo en " + categoriaActiva;
+    b.addEventListener("click", function () { subcategoriaActiva = s; pintarSubcategorias(); pintarLibros(); });
+    $s.appendChild(b);
   });
 }
 
@@ -156,7 +196,7 @@ function pintarDetalle() {
     '<div class="detalle__foto">' + fotoHTML(l, l.nombre) +
       (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</div>" +
     '<div class="detalle__info">' +
-      (l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria) + "</p>" : "") +
+      (l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria + (l.subcategoria ? " › " + l.subcategoria : "")) + "</p>" : "") +
       '<h2 class="detalle__titulo">' + escapar(l.nombre) + "</h2>" +
       (l.autor ? '<p class="tarjeta__autor">' + escapar(l.autor) + "</p>" : "") +
       '<p class="detalle__precio">' + formatoPrecio(l.precio) +
@@ -197,37 +237,117 @@ $detalle.addEventListener("click", function (e) {
 function pintarLibros() {
   var q = sinTildes($buscar.value.trim());
   var visibles = libros.filter(function (l) {
-    var okCat = categoriaActiva === "Todas" || l.categoria === categoriaActiva;
-    var texto = sinTildes([l.nombre, l.autor, l.categoria, l.editorial, l.isbn, String(l.isbn).replace(/[^0-9Xx]/g, "")].join(" "));
+    var okCat = (categoriaActiva === "Todas" || l.categoria === categoriaActiva) &&
+      (!subcategoriaActiva || l.subcategoria === subcategoriaActiva);
+    var texto = sinTildes([l.nombre, l.autor, l.categoria, l.subcategoria, l.editorial, l.isbn, String(l.isbn).replace(/[^0-9Xx]/g, "")].join(" "));
     var qISBN = /^[\d\s-]{6,}x?$/.test(q) ? q.replace(/[\s-]/g, "") : "";
     var okBusqueda = !q || texto.indexOf(q) !== -1 || (qISBN && texto.indexOf(qISBN) !== -1);
     return okCat && okBusqueda;
   });
 
-  $estado.textContent = visibles.length ? "" : (libros.length ? "No encontramos libros con esa búsqueda." : "Pronto agregaremos libros al catálogo.");
-  $grilla.innerHTML = visibles.map(function (l) {
-    var agotado = l.stock <= 0;
-    var enPedido = carrito[l.id] || 0;
-    var foto = fotoHTML(l, l.nombre);
-    var stockTexto = (!agotado && l.stock <= 3) ? '<span class="tarjeta__stock">Quedan ' + l.stock + "</span>" : "";
-    var accion = accionHTML(l, false);
+  var inicio = categoriaActiva === "Todas" && !q;
+  pintarSecciones(inicio);
+  $("titulo-grilla").hidden = !libros.length;
+  $("titulo-grilla-texto").textContent = q ? "Resultados de la búsqueda"
+    : inicio ? "Todos los libros"
+    : categoriaActiva + (subcategoriaActiva ? " › " + subcategoriaActiva : "");
+  $("titulo-grilla-cuenta").textContent = visibles.length + " libro" + (visibles.length === 1 ? "" : "s");
 
-    return '<article class="tarjeta' + (agotado ? " tarjeta--agotada" : "") + '">' +
-      '<button type="button" class="tarjeta__foto" data-ver="' + l.id + '" aria-label="Ver detalles de ' + escapar(l.nombre) + '">' + foto + (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</button>" +
-      '<div class="tarjeta__cuerpo">' +
-        (l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria) + "</p>" : "") +
-        '<h2 class="tarjeta__titulo"><button type="button" class="enlace-titulo" data-ver="' + l.id + '">' + escapar(l.nombre) + "</button></h2>" +
-        (l.autor ? '<p class="tarjeta__autor">' + escapar(l.autor) + "</p>" : "") +
-        (l.descripcion ? '<p class="tarjeta__descripcion">' + escapar(l.descripcion) + "</p>" +
-          '<button type="button" class="ver-mas" data-ver="' + l.id + '">Ver más</button>' : "") +
-        '<div class="tarjeta__pie"><span class="tarjeta__precio">' + formatoPrecio(l.precio) + "</span>" + stockTexto + "</div>" +
-        accion +
-      "</div></article>";
-  }).join("");
+  $estado.textContent = visibles.length ? "" : (libros.length ? "No encontramos libros con esa búsqueda." : "Pronto agregaremos libros al catálogo.");
+  $grilla.innerHTML = visibles.map(function (l) { return tarjetaHTML(l, false); }).join("");
   observarFotos($grilla);
 }
 
-$grilla.addEventListener("click", function (e) {
+function tarjetaHTML(l, compacta) {
+  var agotado = l.stock <= 0;
+  var stockTexto = (!agotado && l.stock <= 3) ? '<span class="tarjeta__stock">Quedan ' + l.stock + "</span>" : "";
+  return '<article class="tarjeta' + (agotado ? " tarjeta--agotada" : "") + (compacta ? " tarjeta--compacta" : "") + '">' +
+    '<button type="button" class="tarjeta__foto" data-ver="' + l.id + '" aria-label="Ver detalles de ' + escapar(l.nombre) + '">' + fotoHTML(l, l.nombre) + (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</button>" +
+    '<div class="tarjeta__cuerpo">' +
+      (!compacta && l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria + (l.subcategoria ? " › " + l.subcategoria : "")) + "</p>" : "") +
+      '<h3 class="tarjeta__titulo"><button type="button" class="enlace-titulo" data-ver="' + l.id + '">' + escapar(l.nombre) + "</button></h3>" +
+      (l.autor ? '<p class="tarjeta__autor">' + escapar(l.autor) + "</p>" : "") +
+      (!compacta && l.descripcion ? '<p class="tarjeta__descripcion">' + escapar(l.descripcion) + "</p>" +
+        '<button type="button" class="ver-mas" data-ver="' + l.id + '">Ver más</button>' : "") +
+      '<div class="tarjeta__pie"><span class="tarjeta__precio">' + formatoPrecio(l.precio) + "</span>" + stockTexto + "</div>" +
+      '<div class="tarjeta__accion" data-accion="' + l.id + '">' + accionHTML(l, false) + "</div>" +
+    "</div></article>";
+}
+
+// ---------- Secciones con carrusel (solo en la página de inicio) ----------
+var MAX_CARRUSEL = 12;
+var seccionesPintadas = false;
+function disponiblesPrimero(lista) {
+  return lista.slice().sort(function (a, b) { return (a.stock <= 0) - (b.stock <= 0); });
+}
+function armarSecciones() {
+  var s = [];
+  var destacados = disponiblesPrimero(libros.filter(function (l) { return l.destacado; }));
+  if (destacados.length) s.push({ titulo: "Destacados", libros: destacados });
+  var conFecha = libros.filter(function (l) { return l.creado; });
+  if (libros.length >= 6 && conFecha.length >= 4) {
+    s.push({ titulo: "Novedades", libros: conFecha.slice().sort(function (a, b) { return b.creado - a.creado; }) });
+  }
+  var cats = ordenCategorias.slice();
+  libros.forEach(function (l) { if (l.categoria && cats.indexOf(l.categoria) === -1) cats.push(l.categoria); });
+  cats.forEach(function (c) {
+    var deCat = disponiblesPrimero(libros.filter(function (l) { return l.categoria === c; }));
+    if (deCat.length >= 2) s.push({ titulo: c, categoria: c, libros: deCat });
+  });
+  return s;
+}
+function pintarSecciones(mostrar) {
+  var $s = $("secciones");
+  $s.hidden = !mostrar;
+  if (!mostrar || seccionesPintadas) return;
+  seccionesPintadas = true;
+  var secciones = armarSecciones();
+  // Con muy pocos libros no vale la pena: se ve solo la cuadrícula.
+  if (libros.length < 6) { $s.innerHTML = ""; return; }
+  $s.innerHTML = secciones.map(function (sec, i) {
+    var lista = sec.libros.slice(0, MAX_CARRUSEL);
+    var hayMas = sec.categoria && sec.libros.length > 0;
+    return '<section class="seccion" aria-labelledby="sec-' + i + '">' +
+      '<div class="seccion__cabecera">' +
+        '<h2 id="sec-' + i + '">' + escapar(sec.titulo) + "</h2>" +
+        (hayMas ? '<button type="button" class="seccion__ver" data-ver-categoria="' + escapar(sec.categoria) + '">Ver todos (' + sec.libros.length + ") →</button>" : "") +
+        '<div class="seccion__flechas">' +
+          '<button type="button" class="flecha" data-flecha="-1" aria-label="Anteriores">‹</button>' +
+          '<button type="button" class="flecha" data-flecha="1" aria-label="Siguientes">›</button>' +
+        "</div>" +
+      "</div>" +
+      '<div class="carrusel" tabindex="0">' + lista.map(function (l) { return tarjetaHTML(l, true); }).join("") + "</div>" +
+    "</section>";
+  }).join("");
+  $s.querySelectorAll(".carrusel").forEach(function (c) {
+    actualizarFlechas(c);
+    c.addEventListener("scroll", function () { actualizarFlechas(c); }, { passive: true });
+  });
+  observarFotos($s);
+}
+function actualizarFlechas(c) {
+  var sec = c.closest(".seccion");
+  var fin = c.scrollWidth - c.clientWidth - 4;
+  sec.querySelector('[data-flecha="-1"]').disabled = c.scrollLeft <= 4;
+  sec.querySelector('[data-flecha="1"]').disabled = c.scrollLeft >= fin;
+  sec.classList.toggle("seccion--sin-flechas", fin <= 4);
+}
+window.addEventListener("resize", function () { document.querySelectorAll(".carrusel").forEach(actualizarFlechas); });
+
+$("secciones").addEventListener("click", function (e) {
+  var f = e.target.closest("[data-flecha]");
+  if (f) {
+    var c = f.closest(".seccion").querySelector(".carrusel");
+    c.scrollBy({ left: parseInt(f.dataset.flecha, 10) * c.clientWidth * 0.9, behavior: "smooth" });
+    return;
+  }
+  var vc = e.target.closest("[data-ver-categoria]");
+  if (vc) { elegirCategoria(vc.dataset.verCategoria, true); return; }
+  manejarClicTarjeta(e);
+});
+
+$grilla.addEventListener("click", manejarClicTarjeta);
+function manejarClicTarjeta(e) {
   var ver = e.target.closest("[data-ver]");
   if (ver) { abrirDetalle(ver.dataset.ver); return; }
   var mas = e.target.closest("[data-mas]"), menos = e.target.closest("[data-menos]");
@@ -237,7 +357,7 @@ $grilla.addEventListener("click", function (e) {
     if (nuevo && carrito[mas.dataset.mas]) avisar("Agregado a tu pedido");
   }
   if (menos) cambiarCantidad(menos.dataset.menos, -1);
-});
+}
 $buscar.addEventListener("input", pintarLibros);
 
 // ---------- Pedido ----------
@@ -326,7 +446,7 @@ function mostrarConfirmacion(codigo, items, total, cliente) {
   $("link-whatsapp").href = enlaceWhatsApp(T.whatsapp, mensajeWhatsApp(codigo, items, total, cliente));
   $("vista-carrito").hidden = true;
   $("vista-confirmacion").hidden = false;
-  carrito = {}; guardarCarrito(); pintarContador(); pintarLibros();
+  carrito = {}; guardarCarrito(); pintarContador(); actualizarAcciones();
   $("form-pedido").reset();
 }
 
@@ -349,11 +469,11 @@ function guardarCache(datos) {
 function normalizar(x, id) {
   return {
     id: id || x.id, nombre: x.nombre || "", autor: x.autor || "", categoria: x.categoria || "",
-    editorial: x.editorial || "", isbn: x.isbn || "",
+    subcategoria: x.subcategoria || "", editorial: x.editorial || "", isbn: x.isbn || "",
     precio: typeof x.precio === "number" ? x.precio : null,
     stock: typeof x.stock === "number" ? x.stock : 0,
     descripcion: x.resumen !== undefined ? x.resumen : (x.descripcion || ""),
-    larga: !!x.larga, foto: x.foto || 0, imagen: x.imagen || ""
+    larga: !!x.larga, foto: x.foto || 0, destacado: !!x.destacado, creado: typeof x.creado === "number" ? x.creado : (x.creado && x.creado.toMillis ? x.creado.toMillis() : 0), imagen: x.imagen || ""
   };
 }
 
@@ -363,7 +483,7 @@ function traerCatalogo() {
   return getDoc(doc(db, "tienda", "catalogo")).then(function (s) {
     if (s.exists()) {
       var d = s.data();
-      var datos = { libros: (d.libros || []).map(function (x) { return normalizar(x); }), categorias: d.categorias || [] };
+      var datos = { libros: (d.libros || []).map(function (x) { return normalizar(x); }), categorias: d.categorias || [], subcategorias: d.subcategorias || {} };
       guardarCache(datos);
       return datos;
     }
@@ -388,6 +508,7 @@ if (!configurado) {
   traerCatalogo().then(function (datos) {
     libros = datos.libros.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre, "es"); });
     ordenCategorias = datos.categorias || [];
+    subsPorCategoria = datos.subcategorias || {};
     limpiarCarrito();
     pintarContador();
     pintarCategorias();

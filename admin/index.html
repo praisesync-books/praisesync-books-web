@@ -110,7 +110,7 @@
           <button class="boton boton--acento" type="submit">Agregar</button>
         </form>
         <ul class="lista-categorias" id="lista-categorias"></ul>
-        <p class="ayuda ayuda--izq">El orden de esta lista es el orden de los botones de categoría en la tienda.</p>
+        <p class="ayuda ayuda--izq">El orden de esta lista es el orden de los botones de categoría en la tienda. Las subcategorías aparecen en la tienda al tocar su categoría.</p>
       </section>
     </main>
   </div>
@@ -140,14 +140,19 @@
           <label class="campo"><span>ISBN</span><input name="isbn" maxlength="40" inputmode="numeric" placeholder="978…" autocomplete="off"></label>
         </div>
         <datalist id="lista-editoriales"></datalist>
-        <label class="campo"><span>Categoría</span>
-          <select name="categoria" id="select-categoria"></select></label>
+        <div class="dos-campos">
+          <label class="campo"><span>Categoría</span>
+            <select name="categoria" id="select-categoria"></select></label>
+          <label class="campo"><span>Subcategoría</span>
+            <select name="subcategoria" id="select-subcategoria"></select></label>
+        </div>
         <div class="dos-campos">
           <label class="campo"><span>Precio (COP) *</span><input name="precio" required inputmode="numeric" placeholder="85000"></label>
           <label class="campo"><span>Stock *</span><input name="stock" required type="number" min="0" step="1" value="0"></label>
         </div>
         <label class="campo"><span>Descripción <small id="contador-descripcion">0 / 3000</small></span><textarea name="descripcion" rows="5" maxlength="3000"></textarea></label>
         <label class="interruptor"><input type="checkbox" name="activo" checked> <span>Visible en la tienda</span></label>
+        <label class="interruptor"><input type="checkbox" name="destacado"> <span>⭐ Destacado <small>(aparece en la sección "Destacados" de la página principal)</small></span></label>
         <p class="error" id="error-libro" hidden></p>
       </div>
       <div class="modal__pie">

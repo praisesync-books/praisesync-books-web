@@ -48,8 +48,15 @@
           <input id="buscar" type="search" placeholder="Buscar libro, autor, editorial o ISBN" autocomplete="off">
         </label>
         <div class="categorias" id="categorias" aria-label="Categorías"></div>
+        <div class="categorias categorias--sub" id="subcategorias" aria-label="Subcategorías" hidden></div>
       </div>
 
+      <div id="secciones" class="secciones"></div>
+
+      <div class="titulo-grilla" id="titulo-grilla" hidden>
+        <h2 id="titulo-grilla-texto">Todos los libros</h2>
+        <span id="titulo-grilla-cuenta"></span>
+      </div>
       <p class="estado" id="estado" aria-live="polite">Cargando catálogo…</p>
       <div class="grilla" id="grilla"></div>
     </section>

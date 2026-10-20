@@ -168,3 +168,13 @@ label.boton { cursor: pointer; }
 .marca__logo--chico { height: 38px; }
 .marca__panel { font-family: "Montserrat", "Inter", sans-serif; font-weight: 700; font-size: .8rem; color: var(--acento); background: var(--acento-suave); padding: 3px 10px; border-radius: 999px; }
 .titulo-fila h1 { color: var(--marino); font-weight: 800; letter-spacing: -.02em; }
+
+/* Subcategorías en el panel */
+.categoria-fila { flex-wrap: wrap; }
+.subcategorias { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 0 2px 76px; }
+.subcategoria { display: inline-flex; align-items: center; gap: 2px; background: var(--acento-suave); border-radius: 999px; padding: 2px 4px 2px 12px; }
+.subcategoria__nombre { font-size: .85rem; font-weight: 500; margin-right: 4px; }
+.subcategoria__nombre small { color: var(--suave); font-weight: 400; }
+.icono-boton--mini { width: 26px; height: 26px; font-size: .8rem; border: 0; background: transparent; }
+.boton--mini { min-height: 28px; font-size: .8rem; padding: 0 6px; }
+@media (max-width: 520px) { .subcategorias { padding-left: 0; } }

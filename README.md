@@ -36,13 +36,13 @@ Firebase → **Authentication → Usuarios → Agregar usuario**, y agrega su co
 - **Pedidos:** filtra por estado, escribe al cliente por WhatsApp con un toque y cambia el estado.
 - **Libros:** crea y edita libros con foto, ajusta el stock con − / + o escribiendo el número, oculta un libro sin borrarlo
   (desmarca "Visible en la tienda").
-- **Categorías:** crea, renombra (actualiza todos sus libros), ordena con ↑ ↓ y elimina.
+- **Categorías y subcategorías:** crea, renombra (actualiza todos sus libros), ordena con ↑ ↓ y elimina. Cada categoría puede tener subcategorías (ej. Biblias › Letra grande).
 
 ### Importar muchos libros a la vez
 Usa `plantilla-catalogo.csv` como modelo (ábrela en Excel o Google Sheets). Columnas:
-**Nombre, Autor, Editorial, ISBN, Categoría, Precio, Stock, Descripción**.
+**Nombre, Autor, Editorial, ISBN, Categoría, Subcategoría, Precio, Stock, Descripción**.
 Ojo con el ISBN en Excel: antes de escribirlo, pon esa columna en formato **Texto**; si no, Excel lo convierte en algo como `9,78E+12`. Guárdala como CSV y en el panel toca **Libros → Importar CSV**.
-Si un libro ya existe (mismo ISBN, o mismo nombre y autor), se actualiza en vez de duplicarse. Las categorías nuevas se crean solas.
+Si un libro ya existe (mismo ISBN, o mismo nombre y autor), se actualiza en vez de duplicarse. Las categorías y subcategorías nuevas se crean solas.
 Las fotos se agregan después, editando cada libro.
 
 ## Notas
