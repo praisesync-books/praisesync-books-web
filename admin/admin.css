@@ -11,7 +11,7 @@
   display: flex; flex-direction: column; gap: 14px;
 }
 .login__icono { width: 48px; height: 48px; border-radius: 14px; }
-.login h1 { margin: 6px 0 0; font-family: "Fraunces", Georgia, serif; font-size: 1.6rem; }
+.login h1 { margin: 6px 0 0; font-family: "Montserrat", "Inter", system-ui, sans-serif; font-size: 1.6rem; }
 .login__sub { margin: -8px 0 6px; color: var(--suave); }
 .login .boton { width: 100%; }
 .login__volver { text-align: center; font-size: .9rem; color: var(--suave); }
@@ -34,7 +34,7 @@
 .seccion-panel section { display: flex; flex-direction: column; gap: 16px; }
 .seccion-panel section[hidden] { display: none; }
 .titulo-fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.titulo-fila h1 { margin: 0; font-family: "Fraunces", Georgia, serif; font-size: 1.8rem; }
+.titulo-fila h1 { margin: 0; font-family: "Montserrat", "Inter", system-ui, sans-serif; font-size: 1.8rem; }
 .botones { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .bloque { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 18px; }
@@ -160,3 +160,11 @@ label.boton { cursor: pointer; }
 #contador-descripcion { float: right; font-weight: 400; color: var(--suave); }
 .fila-libro__foto .foto-perezosa { display: block; width: 100%; height: 100%; }
 .fila-libro__foto .foto-perezosa img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Logo en el panel */
+.login__logo { width: 210px; height: auto; margin: 0 auto 4px; display: block; }
+.login h1 { text-align: center; font-size: 1.35rem; }
+.login__sub { text-align: center; }
+.marca__logo--chico { height: 38px; }
+.marca__panel { font-family: "Montserrat", "Inter", sans-serif; font-weight: 700; font-size: .8rem; color: var(--acento); background: var(--acento-suave); padding: 3px 10px; border-radius: 999px; }
+.titulo-fila h1 { color: var(--marino); font-weight: 800; letter-spacing: -.02em; }

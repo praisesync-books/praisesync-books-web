@@ -1,17 +1,18 @@
 :root {
-  --fondo: #faf7f2;
+  --fondo: #f5f7fb;
   --superficie: #ffffff;
-  --texto: #2a2622;
-  --suave: #6f665c;
-  --borde: #e8e1d6;
-  --acento: #7a2e2e;
-  --acento-suave: #f3e7e2;
-  --acento-hover: #632424;
+  --texto: #0f1d3a;
+  --suave: #56627a;
+  --borde: #e0e6f0;
+  --acento: #0b4fd1;
+  --acento-suave: #e8effc;
+  --acento-hover: #083da6;
+  --marino: #0a1f5c;
   --error: #b42318;
   --whatsapp: #1f9d55;
   --whatsapp-hover: #18834a;
   --radio: 14px;
-  --sombra: 0 1px 2px rgba(42, 38, 34, .05), 0 6px 18px rgba(42, 38, 34, .06);
+  --sombra: 0 1px 2px rgba(15, 29, 58, .05), 0 6px 18px rgba(15, 29, 58, .07);
 }
 
 * { box-sizing: border-box; }
@@ -32,17 +33,17 @@ a { color: inherit; }
 /* Encabezado */
 .encabezado {
   position: sticky; top: 0; z-index: 10;
-  background: rgba(250, 247, 242, .92);
+  background: rgba(255, 255, 255, .94);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--borde);
 }
 .encabezado__fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 64px; }
-.marca { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: "Fraunces", Georgia, serif; font-weight: 700; font-size: 1.1rem; }
+.marca { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: "Montserrat", "Inter", system-ui, sans-serif; font-weight: 700; font-size: 1.1rem; }
 .marca__icono { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--acento); color: #fff; flex: none; }
 
 /* Portada */
 .portada { padding: 48px 0 28px; }
-.portada h1 { font-family: "Fraunces", Georgia, serif; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.1; margin: 0 0 10px; letter-spacing: -.01em; }
+.portada h1 { font-family: "Montserrat", "Inter", system-ui, sans-serif; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.1; margin: 0 0 10px; letter-spacing: -.01em; }
 .portada p { margin: 0; color: var(--suave); max-width: 560px; font-size: 1.05rem; }
 
 /* Controles */
@@ -81,13 +82,13 @@ a { color: inherit; }
 .sin-foto {
   height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   padding: 16px; text-align: center; color: var(--acento);
-  font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1rem; line-height: 1.25;
+  font-family: "Montserrat", "Inter", system-ui, sans-serif; font-weight: 600; font-size: 1rem; line-height: 1.25;
 }
 .etiqueta { position: absolute; top: 10px; left: 10px; background: var(--texto); color: #fff; font-size: .75rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
 
 .tarjeta__cuerpo { display: flex; flex-direction: column; flex: 1; padding: 14px 16px 16px; }
 .tarjeta__categoria { margin: 0 0 4px; font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--acento); }
-.tarjeta__titulo { margin: 0; font-family: "Fraunces", Georgia, serif; font-size: 1.1rem; line-height: 1.25; }
+.tarjeta__titulo { margin: 0; font-family: "Montserrat", "Inter", system-ui, sans-serif; font-size: 1.1rem; line-height: 1.25; }
 .tarjeta__autor { margin: 2px 0 0; color: var(--suave); font-size: .9rem; }
 .tarjeta__descripcion {
   margin: 10px 0 0; color: var(--suave); font-size: .875rem;
@@ -100,7 +101,7 @@ a { color: inherit; }
 @media (max-width: 520px) {
   .tarjeta__cuerpo { padding: 12px; }
   .tarjeta__titulo { font-size: 1rem; }
-  .tarjeta__descripcion { display: none; }
+  .tarjeta__descripcion { -webkit-line-clamp: 2; font-size: .8rem; margin-top: 6px; }
 }
 
 /* Botones */
@@ -159,12 +160,12 @@ a { color: inherit; }
   display: none; flex-direction: column;
 }
 .cajon[open] { display: flex; }
-.cajon::backdrop { background: rgba(42, 38, 34, .45); }
+.cajon::backdrop { background: rgba(10, 31, 92, .45); }
 .cajon__cabecera {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 16px; border-bottom: 1px solid var(--borde); background: var(--superficie);
 }
-.cajon__cabecera h2 { margin: 0; font-family: "Fraunces", Georgia, serif; font-size: 1.3rem; }
+.cajon__cabecera h2 { margin: 0; font-family: "Montserrat", "Inter", system-ui, sans-serif; font-size: 1.3rem; }
 .cajon__cuerpo { padding: 16px; overflow-y: auto; flex: 1; }
 .icono-boton {
   display: grid; place-items: center; width: 40px; height: 40px; border-radius: 999px;
@@ -195,7 +196,7 @@ a { color: inherit; }
 .error { margin: 0; color: var(--error); font-size: .9rem; }
 
 .confirmacion { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 24px 4px; }
-.confirmacion h3 { margin: 4px 0 0; font-family: "Fraunces", Georgia, serif; font-size: 1.35rem; }
+.confirmacion h3 { margin: 4px 0 0; font-family: "Montserrat", "Inter", system-ui, sans-serif; font-size: 1.35rem; }
 .confirmacion p { margin: 0 0 8px; color: var(--suave); }
 .confirmacion .boton { width: 100%; }
 .confirmacion__icono { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 999px; background: var(--whatsapp); color: #fff; }
@@ -215,20 +216,20 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 .enlace-titulo:focus-visible, button.tarjeta__foto:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
 .ver-mas { align-self: flex-start; background: none; border: 0; padding: 4px 0 0; color: var(--acento); font: 600 .85rem "Inter", sans-serif; cursor: pointer; }
 .ver-mas:hover { text-decoration: underline; }
-@media (max-width: 520px) { .ver-mas { display: none; } }
+@media (max-width: 520px) { .ver-mas { font-size: .8rem; } }
 
 /* Ficha del libro */
 .detalle {
   width: min(820px, calc(100% - 32px)); max-height: calc(100% - 32px); padding: 0; border: 0; border-radius: 18px;
   background: var(--superficie); color: var(--texto); overflow: auto;
 }
-.detalle::backdrop { background: rgba(42, 38, 34, .5); }
+.detalle::backdrop { background: rgba(10, 31, 92, .5); }
 .detalle__cerrar { position: absolute; top: 12px; right: 12px; z-index: 2; }
 .detalle__contenido { display: grid; grid-template-columns: minmax(0, 340px) 1fr; }
 .detalle__foto { position: relative; aspect-ratio: 3 / 4; background: var(--acento-suave); }
 .detalle__foto img { width: 100%; height: 100%; object-fit: cover; }
 .detalle__info { padding: 28px 24px 24px; display: flex; flex-direction: column; gap: 4px; }
-.detalle__titulo { margin: 0; font-family: "Fraunces", Georgia, serif; font-size: 1.6rem; line-height: 1.2; padding-right: 36px; }
+.detalle__titulo { margin: 0; font-family: "Montserrat", "Inter", system-ui, sans-serif; font-size: 1.6rem; line-height: 1.2; padding-right: 36px; }
 .detalle__precio { margin: 12px 0 0; font-size: 1.4rem; font-weight: 600; display: flex; align-items: baseline; gap: 10px; }
 .detalle__descripcion { margin: 12px 0 0; color: var(--suave); white-space: pre-line; line-height: 1.6; }
 .detalle__accion { margin-top: auto; padding-top: 20px; }
@@ -248,3 +249,13 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 .foto-perezosa { display: block; width: 100%; height: 100%; }
 .foto-perezosa img, .tarjeta__foto img { animation: aparecer .25s ease; }
 @keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
+
+/* Logo y marca */
+.marca__logo { height: 48px; width: auto; display: block; }
+@media (max-width: 520px) { .marca__logo { height: 38px; } }
+.portada h1, .tarjeta__titulo, .detalle__titulo, .cajon__cabecera h2, .confirmacion h3 { font-weight: 800; letter-spacing: -.02em; color: var(--marino); }
+.tarjeta__titulo { font-weight: 700; letter-spacing: -.01em; }
+.portada { background: linear-gradient(135deg, #0a1f5c 0%, #0b4fd1 60%, #14a0f0 100%); color: #fff; padding: 44px 0 40px; margin-bottom: 28px; }
+.portada h1 { color: #fff; }
+.portada p { color: rgba(255,255,255,.88); }
+.sin-foto { color: var(--acento); }
