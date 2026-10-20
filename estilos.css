@@ -386,3 +386,44 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 .detalle__accion .ficha-cantidad--nueva .boton { flex: 1; width: auto; }
 .ficha-cantidad__nota { margin: 0; text-align: center; font-size: .85rem; color: var(--suave); }
 .detalle__accion .ficha-cantidad:not(.ficha-cantidad--nueva) .cantidad { width: 100%; }
+
+/* Galería de la ficha (portada + interiores) */
+.galeria { overflow: hidden; }
+.galeria__pista { display: flex; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
+.galeria__pista::-webkit-scrollbar { display: none; }
+.galeria__slide { flex: 0 0 100%; height: 100%; scroll-snap-align: start; position: relative; display: grid; place-items: center; }
+.galeria__slide img { width: 100%; height: 100%; object-fit: cover; }
+.galeria__slide .foto-perezosa { width: 100%; height: 100%; }
+.galeria__slide--interior { background: #f1f3f7; }
+.galeria__slide--interior img { object-fit: contain; cursor: zoom-in; }
+.galeria__cargando { color: var(--suave); font-size: .9rem; }
+.galeria__flecha, .galeria__ampliar {
+  position: absolute; z-index: 2; width: 36px; height: 36px; border-radius: 50%; border: 0;
+  background: rgba(255, 255, 255, .92); color: var(--marino); box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+  font-size: 1.5rem; line-height: 1; cursor: pointer; display: grid; place-items: center; padding-bottom: 3px;
+}
+.galeria__flecha { top: 50%; transform: translateY(-50%); }
+.galeria__flecha--izq { left: 10px; }
+.galeria__flecha--der { right: 10px; }
+.galeria__flecha:disabled { opacity: 0; pointer-events: none; }
+.galeria__ampliar { right: 10px; bottom: 10px; font-size: 1.1rem; padding: 0; }
+.galeria__miniaturas { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--superficie); border-top: 1px solid var(--borde); flex-wrap: wrap; }
+.miniatura { width: 46px; height: 60px; padding: 0; border: 2px solid transparent; border-radius: 6px; overflow: hidden; background: var(--acento-suave); cursor: pointer; flex: none; }
+.miniatura img { width: 100%; height: 100%; object-fit: cover; }
+.miniatura .sin-foto { padding: 2px; } .miniatura .sin-foto svg { width: 18px; height: 18px; } .miniatura .sin-foto span { display: none; }
+.miniatura--activa { border-color: var(--acento); }
+.miniaturas__ayuda { margin-left: 4px; font-size: .78rem; color: var(--suave); }
+/* Foto ampliada: ocupa toda la pantalla, se cierra tocando */
+.galeria--ampliada { position: fixed; inset: 0; z-index: 100; aspect-ratio: auto; height: 100%; background: rgba(8, 14, 30, .96); }
+.galeria--ampliada .galeria__slide, .galeria--ampliada .galeria__slide--interior { background: transparent; }
+.galeria--ampliada .galeria__slide img { object-fit: contain; cursor: zoom-out; }
+.galeria--ampliada .galeria__ampliar { top: 14px; right: 14px; bottom: auto; }
+.galeria--ampliada .etiqueta { display: none; }
+@media (max-width: 640px) {
+  .galeria__flecha { width: 32px; height: 32px; }
+  .miniaturas__ayuda { display: none; }
+}
+@media (max-width: 640px) { .galeria__slide--portada img { object-fit: contain; } }
+.detalle:has(.galeria--ampliada) .detalle__cerrar { display: none; }
+.galeria--ampliada .galeria__ampliar { font-size: 0; }
+.galeria--ampliada .galeria__ampliar::before { content: "×"; font-size: 1.6rem; line-height: 1; }

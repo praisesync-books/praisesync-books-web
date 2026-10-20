@@ -178,7 +178,7 @@ function armarCatalogo() {
         paginas: l.paginas || 0, peso: l.peso || 0, dimensiones: l.dimensiones || "", cubierta: l.cubierta || "",
         precio: typeof l.precio === "number" ? l.precio : 0, stock: l.stock || 0,
         resumen: resumenDe(d), larga: d.length > LARGO_RESUMEN, foto: l.foto || 0,
-        destacado: !!l.destacado, creado: msDe(l.creado) || l.creadoMs || 0
+        destacado: !!l.destacado, interiores: l.interiores || 0, creado: msDe(l.creado) || l.creadoMs || 0
       };
     }),
     categorias: categorias.map(function (c) { return c.nombre; }),
@@ -560,7 +560,7 @@ function pintarLibros() {
       '<button type="button" class="fila-libro__info" data-editar="' + l.id + '">' +
         "<strong>" + escapar(l.nombre) + "</strong>" +
         "<span>" + escapar([l.autor, l.editorial, [l.categoria, l.subcategoria].filter(Boolean).join(" › ")].filter(Boolean).join(" · ")) + "</span>" +
-        "<span>" + formatoPrecio(l.precio) + (l.destacado ? " · ⭐ Destacado" : "") + (l.activo === false ? ' · <em>Oculto</em>' : "") + "</span>" +
+        "<span>" + formatoPrecio(l.precio) + (l.interiores ? " · 📖 " + l.interiores + " foto(s) interior" : "") + (l.destacado ? " · ⭐ Destacado" : "") + (l.activo === false ? ' · <em>Oculto</em>' : "") + "</span>" +
       "</button>" +
       '<div class="fila-libro__stock">' +
         '<span class="fila-libro__etiqueta">Stock</span>' +
@@ -653,9 +653,41 @@ function pintarFoto() {
 }
 
 var fotoOriginal = "";
+// Fotos del interior: hasta 3, guardadas en interiores/{idLibro}_1 … _3.
+var MAX_INTERIORES = 3;
+var interioresEditando = [], interioresOriginal = [], cargandoInteriores = false;
+var cacheInteriores = {};   // idLibro -> [dataURL…]
+function pintarInteriores() {
+  var html = interioresEditando.map(function (url, i) {
+    return '<div class="interior"><img src="' + url + '" alt="Interior ' + (i + 1) + '">' +
+      '<button type="button" class="interior__quitar" data-quitar-interior="' + i + '" aria-label="Quitar foto ' + (i + 1) + '">×</button></div>';
+  }).join("");
+  if (cargandoInteriores) html += '<div class="interior interior--cargando">Cargando…</div>';
+  else if (interioresEditando.length < MAX_INTERIORES) {
+    html += '<button type="button" class="interior interior--agregar" id="agregar-interior">+<span>Agregar</span></button>';
+  }
+  $("lista-interiores").innerHTML = html;
+}
 function abrirEditor(id) {
   var l = id ? libros.find(function (x) { return x.id === id; }) : null;
   libroEditando = l ? l.id : null;
+  interioresEditando = []; interioresOriginal = []; cargandoInteriores = false;
+  if (l && l.interiores) {
+    if (cacheInteriores[l.id]) { interioresEditando = cacheInteriores[l.id].slice(); interioresOriginal = cacheInteriores[l.id].slice(); }
+    else {
+      cargandoInteriores = true;
+      var pedidas = [];
+      for (var k = 1; k <= l.interiores; k++) pedidas.push(getDoc(doc(db, "interiores", l.id + "_" + k)));
+      Promise.all(pedidas).then(function (snaps) {
+        var urls = snaps.filter(function (s) { return s.exists(); }).map(function (s) { return s.data().imagen; });
+        cacheInteriores[l.id] = urls;
+        if (libroEditando === l.id && cargandoInteriores) {
+          interioresEditando = urls.slice(); interioresOriginal = urls.slice();
+          cargandoInteriores = false; pintarInteriores();
+        }
+      }).catch(function () { cargandoInteriores = false; pintarInteriores(); avisar("No se pudieron cargar las fotos del interior", true); });
+    }
+  }
   fotoEditando = fotoOriginal = "";
   if (l && l.foto) {
     if (fotos[l.id] !== undefined) fotoEditando = fotoOriginal = fotos[l.id];
@@ -687,6 +719,7 @@ function abrirEditor(id) {
   $("copiar-enlace").hidden = !l || l.activo === false;
   $("error-libro").hidden = true;
   pintarFoto();
+  pintarInteriores();
   $modal.showModal();
   ajustarDescripcion();
 }
@@ -706,7 +739,8 @@ $modal.addEventListener("click", function (e) {
 });
 
 // Reduce la foto en el navegador para guardarla en la base de datos (máx. ~200 KB).
-function comprimirFoto(archivo) {
+function comprimirFoto(archivo, lado, maximo) {
+  lado = lado || 640; maximo = maximo || 270000;
   return new Promise(function (resolver, rechazar) {
     var lector = new FileReader();
     lector.onerror = rechazar;
@@ -714,7 +748,6 @@ function comprimirFoto(archivo) {
       var img = new Image();
       img.onerror = rechazar;
       img.onload = function () {
-        var lado = 640;
         var escala = Math.min(1, lado / Math.max(img.width, img.height));
         var c = document.createElement("canvas");
         c.width = Math.round(img.width * escala);
@@ -724,7 +757,7 @@ function comprimirFoto(archivo) {
         ctx.fillRect(0, 0, c.width, c.height);
         ctx.drawImage(img, 0, 0, c.width, c.height);
         var calidad = 0.82, url = c.toDataURL("image/jpeg", calidad);
-        while (url.length > 270000 && calidad > 0.4) { calidad -= 0.1; url = c.toDataURL("image/jpeg", calidad); }
+        while (url.length > maximo && calidad > 0.4) { calidad -= 0.1; url = c.toDataURL("image/jpeg", calidad); }
         resolver(url);
       };
       img.src = lector.result;
@@ -742,6 +775,26 @@ $("input-foto").addEventListener("change", function (e) {
   e.target.value = "";
 });
 $("quitar-foto").addEventListener("click", function () { fotoEditando = ""; pintarFoto(); });
+
+// Fotos del interior: se guardan con más resolución que la portada para que se pueda leer la letra.
+$("lista-interiores").addEventListener("click", function (e) {
+  if (e.target.closest("#agregar-interior")) { $("input-interior").click(); return; }
+  var q = e.target.closest("[data-quitar-interior]");
+  if (q) { interioresEditando.splice(parseInt(q.dataset.quitarInterior, 10), 1); pintarInteriores(); }
+});
+$("input-interior").addEventListener("change", function (e) {
+  var archivos = Array.prototype.slice.call(e.target.files || []);
+  e.target.value = "";
+  var libres = MAX_INTERIORES - interioresEditando.length;
+  if (archivos.length > libres) avisar("Solo caben " + MAX_INTERIORES + " fotos del interior; se agregan las primeras " + libres + ".");
+  archivos = archivos.slice(0, Math.max(0, libres));
+  if (!archivos.length) return;
+  cargandoInteriores = true; pintarInteriores();
+  Promise.all(archivos.map(function (a) { return comprimirFoto(a, 1100, 420000); }))
+    .then(function (urls) { interioresEditando = interioresEditando.concat(urls).slice(0, MAX_INTERIORES); })
+    .catch(function () { avisar("No se pudo leer alguna de las imágenes", true); })
+    .finally(function () { cargandoInteriores = false; pintarInteriores(); });
+});
 
 $form.addEventListener("submit", function (e) {
   e.preventDefault();
@@ -766,6 +819,8 @@ $form.addEventListener("submit", function (e) {
     actualizado: serverTimestamp()
   };
   var cambioFoto = fotoEditando !== fotoOriginal;
+  var cambioInteriores = !cargandoInteriores && JSON.stringify(interioresEditando) !== JSON.stringify(interioresOriginal);
+  if (cargandoInteriores) { $err.hidden = false; $err.textContent = "Espera a que terminen de cargar las fotos del interior."; return; }
   if (!datos.nombre) { $err.hidden = false; $err.textContent = "El nombre es obligatorio."; return; }
   if (precio === null) { $err.hidden = false; $err.textContent = "Escribe el precio, solo números. Ej: 85000"; return; }
   $err.hidden = true; $btn.disabled = true; $btn.textContent = "Guardando…";
@@ -773,6 +828,7 @@ $form.addEventListener("submit", function (e) {
   var id = ref.id, esNuevo = !libroEditando;
   var local = libros.find(function (x) { return x.id === id; });
   datos.foto = cambioFoto ? (fotoEditando ? Date.now() : 0) : ((local && local.foto) || 0);
+  datos.interiores = cambioInteriores ? interioresEditando.length : ((local && local.interiores) || 0);
   var b = writeBatch(db);
   if (esNuevo) b.set(ref, Object.assign({ creado: serverTimestamp() }, datos));
   else b.update(ref, datos);
@@ -780,7 +836,15 @@ $form.addEventListener("submit", function (e) {
     if (fotoEditando) b.set(doc(db, "portadas", id), { imagen: fotoEditando });
     else b.delete(doc(db, "portadas", id));
   }
+  if (cambioInteriores) {
+    for (var k = 1; k <= MAX_INTERIORES; k++) {
+      var refInt = doc(db, "interiores", id + "_" + k);
+      if (k <= interioresEditando.length) b.set(refInt, { imagen: interioresEditando[k - 1] });
+      else b.delete(refInt);
+    }
+  }
   b.commit().then(function () {
+    if (cambioInteriores) cacheInteriores[id] = interioresEditando.slice();
     var copia = Object.assign({}, datos, { id: id });
     delete copia.actualizado;
     if (esNuevo) copia.creadoMs = Date.now();
@@ -804,6 +868,7 @@ $("borrar-libro").addEventListener("click", function () {
   var b = writeBatch(db);
   b.delete(doc(db, "libros", id));
   b.delete(doc(db, "portadas", id));
+  for (var k = 1; k <= MAX_INTERIORES; k++) b.delete(doc(db, "interiores", id + "_" + k));
   b.commit().then(function () {
     libros = libros.filter(function (x) { return x.id !== id; });
     delete fotos[id];

@@ -34,7 +34,7 @@ Firebase → **Authentication → Usuarios → Agregar usuario**, y agrega su co
 
 - **Resumen:** ventas de hoy y del mes, pedidos pendientes, ventas de los últimos 6 meses, más vendidos y stock bajo.
 - **Pedidos:** filtra por estado, escribe al cliente por WhatsApp con un toque y cambia el estado.
-- **Libros:** crea y edita libros con foto, ajusta el stock con − / + o escribiendo el número, oculta un libro sin borrarlo
+- **Libros:** crea y edita libros con foto de portada y hasta 3 fotos del interior, ajusta el stock con − / + o escribiendo el número, oculta un libro sin borrarlo
   (desmarca "Visible en la tienda").
 - **Página principal:** activa u oculta cada carrusel (Destacados, Más vendidos, Novedades y uno por categoría). "Todos los libros" siempre aparece debajo.
 - **Categorías y subcategorías:** crea, renombra (actualiza todos sus libros), ordena con ↑ ↓ y elimina. Cada categoría puede tener subcategorías (ej. Biblias › Letra grande).
@@ -57,6 +57,7 @@ Las fotos se agregan después, editando cada libro.
 
 ## Notas
 
+- Las fotos del interior se guardan con más resolución (para que se lea la letra) y solo se descargan cuando el cliente abre la ficha del libro.
 - Las fotos se reducen automáticamente y se guardan en la base de datos (no hace falta Firebase Storage).
 - El precio que el cliente ve en WhatsApp es el del catálogo en ese momento; confírmalo siempre en el chat antes de cobrar.
 - Para cambiar el número de WhatsApp, el nombre de la tienda o el mensaje del botón flotante de WhatsApp: `config.js`.

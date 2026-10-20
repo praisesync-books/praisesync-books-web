@@ -52,6 +52,12 @@ service cloud.firestore {
       allow write: if esAdmin();
     }
 
+    // Fotos del interior de los libros (hasta 3 por libro).
+    match /interiores/{id} {
+      allow read: if true;
+      allow write: if esAdmin();
+    }
+
     // Pedidos: cualquiera puede crear uno desde la tienda; solo administración los ve y los cambia.
     match /pedidos/{id} {
       allow create: if esAdmin() || pedidoValido();

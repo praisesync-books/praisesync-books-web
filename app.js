@@ -224,8 +224,7 @@ function pintarDetalle() {
   var agotado = l.stock <= 0;
   $("detalle-contenido").innerHTML =
     '<div class="detalle__lado">' +
-      '<div class="detalle__foto">' + fotoHTML(l, l.nombre) +
-        (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</div>" +
+      galeriaHTML(l, agotado) +
       datosHTML(l, "detalle__datos--lado") +
     "</div>" +
     '<div class="detalle__info">' +
@@ -243,6 +242,7 @@ function pintarDetalle() {
       "</div>" +
     "</div>";
   observarFotos($("detalle-contenido"));
+  prepararGaleria(l);
   // Si la descripción es larga, se trae completa solo al abrir la ficha.
   if (l.larga && !l.descripcionCompleta && !l.pidiendoDescripcion) {
     l.pidiendoDescripcion = true;
@@ -254,6 +254,83 @@ function pintarDetalle() {
 }
 var TITULO_BASE = document.title;
 var BASE_TIENDA = location.href.replace(/[?#].*$/, "");
+// ---------- Galería de la ficha: portada + fotos del interior ----------
+var fotosInteriores = {};   // "idLibro_n" -> dataURL
+var galeriaIndice = 0, galeriaLibro = null;
+function galeriaHTML(l, agotado) {
+  var n = l.interiores || 0;
+  var slides = ['<div class="galeria__slide galeria__slide--portada">' + fotoHTML(l, l.nombre) + "</div>"];
+  for (var k = 1; k <= n; k++) {
+    var clave = l.id + "_" + k, url = fotosInteriores[clave];
+    slides.push('<div class="galeria__slide galeria__slide--interior" data-interior="' + clave + '">' +
+      (url ? '<img src="' + url + '" alt="Interior ' + k + ' de ' + escapar(l.nombre) + '">' : '<span class="galeria__cargando">Cargando…</span>') + "</div>");
+  }
+  var html = '<div class="detalle__foto galeria' + (n ? " galeria--varias" : "") + '">' +
+    '<div class="galeria__pista">' + slides.join("") + "</div>" +
+    (agotado ? '<span class="etiqueta">Agotado</span>' : "") +
+    (n ? '<button type="button" class="galeria__flecha galeria__flecha--izq" data-galeria="-1" aria-label="Foto anterior">‹</button>' +
+         '<button type="button" class="galeria__flecha galeria__flecha--der" data-galeria="1" aria-label="Foto siguiente">›</button>' +
+         '<button type="button" class="galeria__ampliar" data-ampliar aria-label="Ver foto en grande">⤢</button>' : "") +
+    "</div>";
+  if (n) {
+    html += '<div class="galeria__miniaturas">' +
+      '<button type="button" class="miniatura" data-ir="0" aria-label="Portada">' + fotoHTML(l, "") + "</button>";
+    for (var j = 1; j <= n; j++) {
+      var c2 = l.id + "_" + j;
+      html += '<button type="button" class="miniatura" data-ir="' + j + '" aria-label="Interior ' + j + '">' +
+        (fotosInteriores[c2] ? '<img src="' + fotosInteriores[c2] + '" alt="">' : "") + "</button>";
+    }
+    html += '<span class="miniaturas__ayuda">Fotos del interior</span></div>';
+  }
+  return html;
+}
+function prepararGaleria(l) {
+  if (galeriaLibro !== l.id) { galeriaLibro = l.id; galeriaIndice = 0; }
+  var pista = document.querySelector("#detalle-contenido .galeria__pista");
+  if (!pista) return;
+  // Volver a la foto que el cliente estaba viendo (por si la ficha se redibujó).
+  pista.scrollLeft = galeriaIndice * pista.clientWidth;
+  marcarMiniatura();
+  pista.addEventListener("scroll", function () {
+    var i = Math.round(pista.scrollLeft / Math.max(1, pista.clientWidth));
+    if (i !== galeriaIndice) { galeriaIndice = i; marcarMiniatura(); }
+  }, { passive: true });
+  // Las fotos del interior se descargan solo al abrir la ficha.
+  for (var k = 1; k <= (l.interiores || 0); k++) cargarInterior(l, l.id + "_" + k);
+}
+function cargarInterior(l, clave) {
+  if (fotosInteriores[clave]) return;
+  getDoc(doc(db, "interiores", clave)).then(function (s) {
+    if (!s.exists()) return;
+    fotosInteriores[clave] = s.data().imagen;
+    document.querySelectorAll('#detalle-contenido [data-interior="' + clave + '"]').forEach(function (el) {
+      el.innerHTML = '<img src="' + fotosInteriores[clave] + '" alt="Interior de ' + escapar(l.nombre) + '">';
+    });
+    var k = clave.slice(clave.lastIndexOf("_") + 1);
+    var mini = document.querySelector('#detalle-contenido .miniatura[data-ir="' + k + '"]');
+    if (mini) mini.innerHTML = '<img src="' + fotosInteriores[clave] + '" alt="">';
+  }).catch(function () {});
+}
+function marcarMiniatura() {
+  document.querySelectorAll("#detalle-contenido .miniatura").forEach(function (m) {
+    m.classList.toggle("miniatura--activa", Number(m.dataset.ir) === galeriaIndice);
+  });
+  var g = document.querySelector("#detalle-contenido .galeria");
+  if (!g) return;
+  var total = g.querySelectorAll(".galeria__slide").length;
+  var izq = g.querySelector('[data-galeria="-1"]'), der = g.querySelector('[data-galeria="1"]');
+  if (izq) izq.disabled = galeriaIndice <= 0;
+  if (der) der.disabled = galeriaIndice >= total - 1;
+}
+function irAFoto(i) {
+  var pista = document.querySelector("#detalle-contenido .galeria__pista");
+  if (!pista) return;
+  var total = pista.children.length;
+  galeriaIndice = Math.max(0, Math.min(total - 1, i));
+  pista.scrollTo({ left: galeriaIndice * pista.clientWidth, behavior: "smooth" });
+  marcarMiniatura();
+}
+
 // Ficha técnica del libro: solo se muestran los datos que tenga.
 function textoPeso(g) {
   if (!g) return "";
@@ -313,6 +390,17 @@ function copiarTexto(t) {
 }
 $detalle.addEventListener("click", function (e) {
   if (e.target.closest("[data-cerrar]") || e.target === $detalle) { $detalle.close(); return; }
+  var ir = e.target.closest("[data-ir]");
+  if (ir) { irAFoto(Number(ir.dataset.ir)); return; }
+  var gf = e.target.closest("[data-galeria]");
+  if (gf) { irAFoto(galeriaIndice + Number(gf.dataset.galeria)); return; }
+  var g = e.target.closest(".galeria");
+  if (g && (e.target.closest("[data-ampliar]") || (g.classList.contains("galeria--ampliada") && !e.target.closest("button")) ||
+      (e.target.closest(".galeria__slide--interior img")))) {
+    g.classList.toggle("galeria--ampliada");
+    requestAnimationFrame(function () { irAFoto(galeriaIndice); });
+    return;
+  }
   var sel = e.target.closest("[data-sel]");
   if (sel) {
     var campo = $("cantidad-ficha"), lb = libroPorId(libroEnDetalle);
@@ -632,7 +720,7 @@ function normalizar(x, id) {
     precio: typeof x.precio === "number" ? x.precio : null,
     stock: typeof x.stock === "number" ? x.stock : 0,
     descripcion: x.resumen !== undefined ? x.resumen : (x.descripcion || ""),
-    larga: !!x.larga, foto: x.foto || 0, destacado: !!x.destacado, creado: typeof x.creado === "number" ? x.creado : (x.creado && x.creado.toMillis ? x.creado.toMillis() : 0), imagen: x.imagen || ""
+    larga: !!x.larga, foto: x.foto || 0, destacado: !!x.destacado, interiores: x.interiores || 0, creado: typeof x.creado === "number" ? x.creado : (x.creado && x.creado.toMillis ? x.creado.toMillis() : 0), imagen: x.imagen || ""
   };
 }
 

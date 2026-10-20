@@ -196,3 +196,25 @@ label.boton { cursor: pointer; }
 .switch:checked { background: var(--acento); }
 .switch:checked::after { transform: translateX(20px); }
 .switch:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+/* Fotos del interior en el editor */
+.interiores { display: flex; flex-direction: column; gap: 8px; }
+.interiores__titulo { font-size: .9rem; font-weight: 500; }
+.interiores__titulo small { font-weight: 400; color: var(--suave); }
+.interiores__fila { display: flex; gap: 10px; flex-wrap: wrap; }
+.interior {
+  position: relative; width: 84px; height: 112px; border-radius: 8px; overflow: hidden;
+  background: var(--acento-suave); border: 1px solid var(--borde); flex: none;
+}
+.interior img { width: 100%; height: 100%; object-fit: cover; }
+.interior__quitar {
+  position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 50%; border: 0;
+  background: rgba(15, 29, 58, .75); color: #fff; font-size: 1rem; line-height: 1; cursor: pointer;
+}
+.interior--agregar {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: 2px dashed var(--acento); background: var(--superficie); color: var(--acento);
+  font: 700 1.6rem "Inter", sans-serif; cursor: pointer;
+}
+.interior--agregar span { font-size: .75rem; font-weight: 600; }
+.interior--cargando { display: grid; place-items: center; font-size: .75rem; color: var(--suave); }
