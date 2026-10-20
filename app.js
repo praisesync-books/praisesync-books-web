@@ -51,11 +51,20 @@ function totalCarrito() {
 }
 
 function cambiarCantidad(id, delta) {
+  fijarCantidad(id, (carrito[id] || 0) + delta, delta > 0);
+}
+
+// Pone una cantidad exacta de un libro en el pedido (0 lo quita). Nunca pasa del stock disponible.
+function fijarCantidad(id, cantidad, sumando) {
   var l = libroPorId(id);
   if (!l) return;
-  var nueva = (carrito[id] || 0) + delta;
-  if (nueva <= 0) delete carrito[id];
-  else if (nueva > l.stock) { avisar("Solo hay " + l.stock + " disponible" + (l.stock === 1 ? "" : "s")); return; }
+  var nueva = Math.max(0, Math.floor(Number(cantidad) || 0));
+  if (nueva > l.stock) {
+    avisar("Solo hay " + l.stock + " disponible" + (l.stock === 1 ? "" : "s"));
+    if (sumando && (carrito[id] || 0) >= l.stock) return;
+    nueva = l.stock;
+  }
+  if (nueva === 0) delete carrito[id];
   else carrito[id] = nueva;
   guardarCarrito();
   pintarContador();
@@ -179,9 +188,25 @@ function pintarSubcategorias() {
   });
 }
 
+function selectorHTML(id, valor, max, attrs) {
+  return '<div class="cantidad cantidad--editable" role="group" aria-label="Cantidad">' +
+    '<button type="button" ' + attrs.menos + ' aria-label="Quitar uno">−</button>' +
+    '<input type="number" inputmode="numeric" min="1" max="' + max + '" value="' + valor + '" ' + attrs.input + ' aria-label="Cantidad">' +
+    '<button type="button" ' + attrs.mas + ' aria-label="Agregar uno">+</button>' +
+    "</div>";
+}
 function accionHTML(l, grande) {
   var enPedido = carrito[l.id] || 0;
   if (l.stock <= 0) return '<span class="boton boton--deshabilitado">Agotado</span>';
+  if (grande) {
+    // En la ficha: se puede escribir la cantidad.
+    if (enPedido) return '<div class="ficha-cantidad">' +
+      selectorHTML(l.id, enPedido, l.stock, { menos: 'data-menos="' + l.id + '"', mas: 'data-mas="' + l.id + '"', input: 'data-cantidad="' + l.id + '"' }) +
+      '<p class="ficha-cantidad__nota">En tu pedido · ' + formatoPrecio(enPedido * (l.precio || 0)) + "</p></div>";
+    return '<div class="ficha-cantidad ficha-cantidad--nueva">' +
+      selectorHTML(l.id, 1, l.stock, { menos: 'data-sel="-1"', mas: 'data-sel="1"', input: 'id="cantidad-ficha"' }) +
+      '<button type="button" class="boton boton--acento" data-agregar-n="' + l.id + '">Agregar al pedido</button></div>';
+  }
   if (enPedido) return '<div class="cantidad" role="group" aria-label="Cantidad en el pedido">' +
     '<button type="button" data-menos="' + l.id + '" aria-label="Quitar uno">−</button>' +
     "<span>" + enPedido + " en pedido</span>" +
@@ -288,6 +313,21 @@ function copiarTexto(t) {
 }
 $detalle.addEventListener("click", function (e) {
   if (e.target.closest("[data-cerrar]") || e.target === $detalle) { $detalle.close(); return; }
+  var sel = e.target.closest("[data-sel]");
+  if (sel) {
+    var campo = $("cantidad-ficha"), lb = libroPorId(libroEnDetalle);
+    var v = Math.max(1, (Number(campo.value) || 1) + Number(sel.dataset.sel));
+    if (lb && v > lb.stock) { v = lb.stock; avisar("Solo hay " + lb.stock + " disponible" + (lb.stock === 1 ? "" : "s")); }
+    campo.value = v;
+    return;
+  }
+  var agregarN = e.target.closest("[data-agregar-n]");
+  if (agregarN) {
+    var cuantos = Math.max(1, Math.floor(Number($("cantidad-ficha").value) || 1));
+    fijarCantidad(agregarN.dataset.agregarN, cuantos);
+    if (carrito[agregarN.dataset.agregarN]) avisar(carrito[agregarN.dataset.agregarN] === 1 ? "Agregado a tu pedido" : carrito[agregarN.dataset.agregarN] + " agregados a tu pedido");
+    return;
+  }
   var comp = e.target.closest("[data-compartir]");
   if (comp) { var lc = libroPorId(comp.dataset.compartir); if (lc) compartirLibro(lc); return; }
   var mas = e.target.closest("[data-mas]"), menos = e.target.closest("[data-menos]");
@@ -471,13 +511,33 @@ function pintarCarrito() {
       '<div class="item-pedido__info"><strong>' + escapar(l.nombre) + "</strong>" +
         (l.autor ? "<span>" + escapar(l.autor) + "</span>" : "") +
         "<span>" + formatoPrecio(l.precio) + " c/u</span></div>" +
-      '<div class="cantidad cantidad--chica">' +
-        '<button type="button" data-menos="' + l.id + '" aria-label="Quitar uno">−</button>' +
-        "<span>" + it.cantidad + "</span>" +
-        '<button type="button" data-mas="' + l.id + '" aria-label="Agregar uno">+</button>' +
-      "</div></li>";
+      selectorHTML(l.id, it.cantidad, l.stock, { menos: 'data-menos="' + l.id + '"', mas: 'data-mas="' + l.id + '"', input: 'data-cantidad="' + l.id + '"' })
+        .replace("cantidad cantidad--editable", "cantidad cantidad--chica cantidad--editable") +
+      "</li>";
   }).join("");
 }
+
+// Cantidades escritas a mano (en la ficha y en "Mi pedido").
+function alCambiarCantidad(e) {
+  var i = e.target.closest("[data-cantidad]");
+  if (i) fijarCantidad(i.dataset.cantidad, i.value === "" ? (carrito[i.dataset.cantidad] || 1) : i.value);
+}
+function alPresionarEnter(e) {
+  if (e.key === "Enter" && e.target.matches('input[type="number"]')) { e.preventDefault(); e.target.blur(); }
+}
+$("lista-pedido").addEventListener("change", alCambiarCantidad);
+$("lista-pedido").addEventListener("keydown", alPresionarEnter);
+$detalle.addEventListener("change", function (e) {
+  if (e.target.id === "cantidad-ficha") {
+    var l = libroPorId(libroEnDetalle);
+    var n = Math.max(1, Math.floor(Number(e.target.value) || 1));
+    if (l && n > l.stock) { n = l.stock; avisar("Solo hay " + l.stock + " disponible" + (l.stock === 1 ? "" : "s")); }
+    e.target.value = n;
+    return;
+  }
+  alCambiarCantidad(e);
+});
+$detalle.addEventListener("keydown", alPresionarEnter);
 
 $("lista-pedido").addEventListener("click", function (e) {
   var mas = e.target.closest("[data-mas]"), menos = e.target.closest("[data-menos]");

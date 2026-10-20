@@ -371,3 +371,18 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 }
 /* Espacio al final para que el botón no tape el pie de página */
 .pie { padding-bottom: 88px; }
+
+/* Cantidad que se puede escribir */
+.cantidad--editable input {
+  width: 3.2em; border: 0; background: transparent; text-align: center; font: inherit; font-weight: 700;
+  color: var(--texto); -moz-appearance: textfield; padding: 0;
+}
+.cantidad--editable input::-webkit-outer-spin-button, .cantidad--editable input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.cantidad--editable input:focus { outline: 2px solid var(--acento-suave); border-radius: 6px; }
+.cantidad--chica.cantidad--editable input { width: 2.6em; font-size: .9rem; }
+.ficha-cantidad { display: flex; flex-direction: column; gap: 6px; }
+.ficha-cantidad--nueva { flex-direction: row; gap: 10px; }
+.detalle__accion .ficha-cantidad--nueva .cantidad { flex: none; width: 140px; }
+.detalle__accion .ficha-cantidad--nueva .boton { flex: 1; width: auto; }
+.ficha-cantidad__nota { margin: 0; text-align: center; font-size: .85rem; color: var(--suave); }
+.detalle__accion .ficha-cantidad:not(.ficha-cantidad--nueva) .cantidad { width: 100%; }
