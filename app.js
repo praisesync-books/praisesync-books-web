@@ -57,6 +57,7 @@ function cambiarCantidad(id, delta) {
   pintarContador();
   pintarLibros();
   pintarCarrito();
+  if (libroEnDetalle && $detalle.open) pintarDetalle();
 }
 
 function avisar(texto) {
@@ -81,7 +82,7 @@ function pintarCategorias() {
   });
   libros.forEach(function (l) { if (l.categoria && cats.indexOf(l.categoria) === -1) cats.push(l.categoria); });
   $categorias.innerHTML = "";
-  if (cats.length <= 2) return;
+  if (cats.length <= 1) return;
   cats.forEach(function (c) {
     var b = document.createElement("button");
     b.type = "button";
@@ -92,6 +93,53 @@ function pintarCategorias() {
     $categorias.appendChild(b);
   });
 }
+
+function accionHTML(l, grande) {
+  var enPedido = carrito[l.id] || 0;
+  if (l.stock <= 0) return '<span class="boton boton--deshabilitado">Agotado</span>';
+  if (enPedido) return '<div class="cantidad" role="group" aria-label="Cantidad en el pedido">' +
+    '<button type="button" data-menos="' + l.id + '" aria-label="Quitar uno">−</button>' +
+    "<span>" + enPedido + " en pedido</span>" +
+    '<button type="button" data-mas="' + l.id + '" aria-label="Agregar uno">+</button>' +
+    "</div>";
+  return '<button type="button" class="boton boton--acento" data-mas="' + l.id + '">' +
+    (grande ? "Agregar al pedido" : 'Agregar<span class="solo-escritorio"> al pedido</span>') + "</button>";
+}
+
+// ---------- Ficha del libro ----------
+var $detalle = $("detalle"), libroEnDetalle = null;
+function pintarDetalle() {
+  var l = libroPorId(libroEnDetalle);
+  if (!l) return;
+  var agotado = l.stock <= 0;
+  $("detalle-contenido").innerHTML =
+    '<div class="detalle__foto">' + (l.imagen ? '<img src="' + escapar(l.imagen) + '" alt="' + escapar(l.nombre) + '">' : portadaVaciaHTML(l.nombre)) +
+      (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</div>" +
+    '<div class="detalle__info">' +
+      (l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria) + "</p>" : "") +
+      '<h2 class="detalle__titulo">' + escapar(l.nombre) + "</h2>" +
+      (l.autor ? '<p class="tarjeta__autor">' + escapar(l.autor) + "</p>" : "") +
+      '<p class="detalle__precio">' + formatoPrecio(l.precio) +
+        (!agotado && l.stock <= 3 ? ' <span class="tarjeta__stock">Quedan ' + l.stock + "</span>" : "") + "</p>" +
+      (l.descripcion ? '<p class="detalle__descripcion">' + escapar(l.descripcion) + "</p>" : "") +
+      '<div class="detalle__accion">' + accionHTML(l, true) + "</div>" +
+    "</div>";
+}
+function abrirDetalle(id) {
+  libroEnDetalle = id;
+  pintarDetalle();
+  if ($detalle.showModal) $detalle.showModal(); else $detalle.setAttribute("open", "");
+}
+$detalle.addEventListener("click", function (e) {
+  if (e.target.closest("[data-cerrar]") || e.target === $detalle) { $detalle.close(); return; }
+  var mas = e.target.closest("[data-mas]"), menos = e.target.closest("[data-menos]");
+  if (mas) {
+    var nuevo = !carrito[mas.dataset.mas];
+    cambiarCantidad(mas.dataset.mas, 1);
+    if (nuevo && carrito[mas.dataset.mas]) avisar("Agregado a tu pedido");
+  }
+  if (menos) cambiarCantidad(menos.dataset.menos, -1);
+});
 
 function pintarLibros() {
   var q = sinTildes($buscar.value.trim());
@@ -109,23 +157,16 @@ function pintarLibros() {
       ? '<img src="' + escapar(l.imagen) + '" alt="' + escapar(l.nombre) + '" loading="lazy">'
       : portadaVaciaHTML(l.nombre);
     var stockTexto = (!agotado && l.stock <= 3) ? '<span class="tarjeta__stock">Quedan ' + l.stock + "</span>" : "";
-    var accion;
-    if (agotado) accion = '<span class="boton boton--deshabilitado">Agotado</span>';
-    else if (enPedido) accion =
-      '<div class="cantidad" role="group" aria-label="Cantidad en el pedido">' +
-        '<button type="button" data-menos="' + l.id + '" aria-label="Quitar uno">−</button>' +
-        "<span>" + enPedido + " en pedido</span>" +
-        '<button type="button" data-mas="' + l.id + '" aria-label="Agregar uno">+</button>' +
-      "</div>";
-    else accion = '<button type="button" class="boton boton--acento" data-mas="' + l.id + '">Agregar<span class="solo-escritorio"> al pedido</span></button>';
+    var accion = accionHTML(l, false);
 
     return '<article class="tarjeta' + (agotado ? " tarjeta--agotada" : "") + '">' +
-      '<div class="tarjeta__foto">' + foto + (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</div>" +
+      '<button type="button" class="tarjeta__foto" data-ver="' + l.id + '" aria-label="Ver detalles de ' + escapar(l.nombre) + '">' + foto + (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</button>" +
       '<div class="tarjeta__cuerpo">' +
         (l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria) + "</p>" : "") +
-        '<h2 class="tarjeta__titulo">' + escapar(l.nombre) + "</h2>" +
+        '<h2 class="tarjeta__titulo"><button type="button" class="enlace-titulo" data-ver="' + l.id + '">' + escapar(l.nombre) + "</button></h2>" +
         (l.autor ? '<p class="tarjeta__autor">' + escapar(l.autor) + "</p>" : "") +
-        (l.descripcion ? '<p class="tarjeta__descripcion">' + escapar(l.descripcion) + "</p>" : "") +
+        (l.descripcion ? '<p class="tarjeta__descripcion">' + escapar(l.descripcion) + "</p>" +
+          '<button type="button" class="ver-mas" data-ver="' + l.id + '">Ver más</button>' : "") +
         '<div class="tarjeta__pie"><span class="tarjeta__precio">' + formatoPrecio(l.precio) + "</span>" + stockTexto + "</div>" +
         accion +
       "</div></article>";
@@ -133,6 +174,8 @@ function pintarLibros() {
 }
 
 $grilla.addEventListener("click", function (e) {
+  var ver = e.target.closest("[data-ver]");
+  if (ver) { abrirDetalle(ver.dataset.ver); return; }
   var mas = e.target.closest("[data-mas]"), menos = e.target.closest("[data-menos]");
   if (mas) {
     var nuevo = !carrito[mas.dataset.mas];
