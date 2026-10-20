@@ -353,3 +353,21 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 /* Botón compartir en la ficha */
 .detalle__accion { display: flex; flex-direction: column; gap: 10px; }
 .boton--compartir { width: 100%; }
+
+/* Botón flotante de WhatsApp */
+.whatsapp-flotante {
+  position: fixed; right: 20px; bottom: 20px; z-index: 40;
+  display: flex; align-items: center; gap: 10px;
+  height: 58px; min-width: 58px; padding: 0 14px; border-radius: 999px;
+  background: #25d366; color: #fff; text-decoration: none;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .22); transition: transform .15s, box-shadow .15s;
+}
+.whatsapp-flotante:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0, 0, 0, .26); }
+.whatsapp-flotante:focus-visible { outline: 3px solid var(--acento); outline-offset: 3px; }
+.whatsapp-flotante__texto { font: 600 .95rem "Inter", sans-serif; white-space: nowrap; padding-right: 4px; }
+@media (max-width: 760px) {
+  .whatsapp-flotante { right: 16px; bottom: 16px; width: 56px; height: 56px; padding: 0; justify-content: center; }
+  .whatsapp-flotante__texto { display: none; }
+}
+/* Espacio al final para que el botón no tape el pie de página */
+.pie { padding-bottom: 88px; }

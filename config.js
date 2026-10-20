@@ -8,8 +8,8 @@ window.TIENDA = {
   // Número de WhatsApp con código de país, solo números (57 = Colombia).
   whatsapp: "573132092326",
 
-  // Mensaje del botón "Escríbenos" del encabezado.
-  mensajeGeneral: "Hola, tengo una pregunta sobre los libros.",
+  // Mensaje del botón flotante de WhatsApp.
+  mensajeGeneral: "Hola, vengo de la tienda PraiseSync Books Web y tengo una pregunta.",
 
   // Datos de Firebase: pega aquí el bloque firebaseConfig de tu proyecto.
   // (No son secretos; la seguridad la ponen las reglas de Firestore.)

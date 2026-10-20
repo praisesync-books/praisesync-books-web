@@ -41,7 +41,8 @@ Firebase → **Authentication → Usuarios → Agregar usuario**, y agrega su co
 
 ### Importar muchos libros a la vez
 Usa `plantilla-catalogo.csv` como modelo (ábrela en Excel o Google Sheets). Columnas:
-**Nombre, Autor, Editorial, ISBN, Categoría, Subcategoría, Precio, Stock, Descripción**.
+**Nombre, Autor, Editorial, ISBN, Categoría, Subcategoría, Precio, Stock, Páginas, Peso, Dimensiones, Cubierta, Descripción**.
+Peso en gramos (también acepta `1,2 kg`); dimensiones en centímetros, ej. `15 x 22 x 3`. Las columnas que no necesites se pueden quitar.
 Ojo con el ISBN en Excel: antes de escribirlo, pon esa columna en formato **Texto**; si no, Excel lo convierte en algo como `9,78E+12`. Guárdala como CSV y en el panel toca **Libros → Importar CSV**.
 Si un libro ya existe (mismo ISBN, o mismo nombre y autor), se actualiza en vez de duplicarse. Las categorías y subcategorías nuevas se crean solas.
 Las fotos se agregan después, editando cada libro.
@@ -58,6 +59,6 @@ Las fotos se agregan después, editando cada libro.
 
 - Las fotos se reducen automáticamente y se guardan en la base de datos (no hace falta Firebase Storage).
 - El precio que el cliente ve en WhatsApp es el del catálogo en ese momento; confírmalo siempre en el chat antes de cobrar.
-- Para cambiar el número de WhatsApp o el nombre de la tienda: `config.js`.
+- Para cambiar el número de WhatsApp, el nombre de la tienda o el mensaje del botón flotante de WhatsApp: `config.js`.
 - **Dominio propio:** compra el dominio, configura su DNS para GitHub Pages, escríbelo en Settings → Pages → Custom domain,
   y agrégalo en Firebase → Authentication → Configuración → Dominios autorizados.
