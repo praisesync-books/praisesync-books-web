@@ -728,13 +728,14 @@ function mostrarConfirmacion(codigo, items, total, cliente) {
 
 // ---------- Cargar catálogo ----------
 // Se lee un solo documento (tienda/catalogo) que el panel mantiene al día.
-// Se recuerda unos minutos en el navegador para no gastar lecturas si el cliente vuelve a entrar.
-var CLAVE_CACHE = "psb-catalogo", MINUTOS_CACHE = 3;
+// La última copia se guarda en el navegador para mostrar la tienda al instante; enseguida se
+// consulta la versión actual y, si cambió algo en el panel, la tienda se actualiza sola.
+var CLAVE_CACHE = "psb-catalogo", DIAS_CACHE = 7;
 
 function leerCache() {
   try {
     var c = JSON.parse(localStorage.getItem(CLAVE_CACHE) || "null");
-    if (c && Date.now() - c.t < MINUTOS_CACHE * 60000) return c.datos;
+    if (c && c.datos && Date.now() - c.t < DIAS_CACHE * 864e5) return c.datos;
   } catch (e) {}
   return null;
 }
@@ -755,8 +756,6 @@ function normalizar(x, id) {
 }
 
 function traerCatalogo() {
-  var enCache = leerCache();
-  if (enCache) return Promise.resolve(enCache);
   return getDoc(doc(db, "tienda", "catalogo")).then(function (s) {
     if (s.exists()) {
       var d = s.data();
@@ -780,26 +779,41 @@ function traerCatalogo() {
   });
 }
 
+var catalogoMostrado = false;
+function aplicarCatalogo(datos) {
+  var primeraVez = !catalogoMostrado;
+  catalogoMostrado = true;
+  libros = datos.libros.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre, "es"); });
+  ordenCategorias = datos.categorias || [];
+  subsPorCategoria = datos.subcategorias || {};
+  vendidos = datos.vendidos || {};
+  campanas = datos.campanas || [];
+  ajustesSecciones = datos.secciones || {};
+  bannerAltura = datos.bannerAltura || "baja";
+  pintarAnuncio(datos.anuncio);
+  pintarBanners(datos.banners || []);
+  seccionesPintadas = false;   // los carruseles se arman de nuevo con los datos nuevos
+  limpiarCarrito();
+  pintarContador();
+  pintarCategorias();
+  pintarLibros();
+  if (libroEnDetalle && $detalle.open) { if (libroPorId(libroEnDetalle)) pintarDetalle(); else $detalle.close(); }
+  if (primeraVez) abrirDesdeEnlace();
+}
+
 if (!configurado) {
   $estado.textContent = "La tienda se está configurando. Vuelve pronto.";
 } else {
-  traerCatalogo().then(function (datos) {
-    libros = datos.libros.slice().sort(function (a, b) { return a.nombre.localeCompare(b.nombre, "es"); });
-    ordenCategorias = datos.categorias || [];
-    subsPorCategoria = datos.subcategorias || {};
-    vendidos = datos.vendidos || {};
-    campanas = datos.campanas || [];
-    pintarAnuncio(datos.anuncio);
-    bannerAltura = datos.bannerAltura || "baja";
-    pintarBanners(datos.banners || []);
-    ajustesSecciones = datos.secciones || {};
-    limpiarCarrito();
-    pintarContador();
-    pintarCategorias();
-    pintarLibros();
-    abrirDesdeEnlace();
+  // Se espera a que el resto del archivo termine de cargar (banners, anuncio…) antes de dibujar.
+  Promise.resolve().then(function () {
+    var enCache = leerCache();
+    if (enCache) { try { aplicarCatalogo(enCache); } catch (e) { catalogoMostrado = false; } }
+    return traerCatalogo().then(function (datos) {
+      // Solo se vuelve a dibujar si algo cambió desde la copia guardada.
+      if (!enCache || !catalogoMostrado || JSON.stringify(datos) !== JSON.stringify(enCache)) aplicarCatalogo(datos);
+    });
   }).catch(function () {
-    $estado.textContent = "No se pudo cargar el catálogo. Intenta recargar la página.";
+    if (!catalogoMostrado) $estado.textContent = "No se pudo cargar el catálogo. Intenta recargar la página.";
   });
 }
 
@@ -875,10 +889,14 @@ function pintarBanners(lista) {
   // La primera foto se carga de inmediato; las demás justo después.
   cargarFotoBanner(0).then(function () { for (var i = 1; i < bannersActivos.length; i++) cargarFotoBanner(i); });
   var pista = $("banners-pista");
-  pista.addEventListener("scroll", function () {
-    var i = Math.round(pista.scrollLeft / Math.max(1, pista.clientWidth));
-    if (i !== bannerIndice) { bannerIndice = i; marcarPuntoBanner(); }
-  }, { passive: true });
+  if (!pista.dataset.escucha) {
+    pista.dataset.escucha = "1";
+    pista.addEventListener("scroll", function () {
+      var i = Math.round(pista.scrollLeft / Math.max(1, pista.clientWidth));
+      if (i !== bannerIndice) { bannerIndice = i; marcarPuntoBanner(); }
+    }, { passive: true });
+  }
+  pista.scrollLeft = 0;
   bannerIndice = 0; marcarPuntoBanner(); programarBanner();
 }
 

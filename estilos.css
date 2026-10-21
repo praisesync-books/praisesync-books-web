@@ -558,3 +558,9 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
   .banners--baja .banners__puntos { bottom: 6px; padding-right: 12px; }
   .banners--media .banner__contenido { padding-bottom: 32px; }
 }
+
+/* Ajustes: puntos siempre centrados y flechas siempre visibles en computador */
+.banners--baja .banners__puntos { justify-content: center; padding-right: 0; }
+.banners__flecha { opacity: .85; }
+.banners__flecha:hover { opacity: 1; }
+@media (max-width: 640px) { .banners--baja .banners__puntos { padding-right: 0; } }
