@@ -707,6 +707,7 @@ $("form-pedido").addEventListener("submit", function (e) {
     cliente: cliente, items: items, total: total,
     estado: "pendiente", stockDescontado: false, creado: serverTimestamp()
   }).then(function (ref) {
+    avisarPedido(ref.id);
     mostrarConfirmacion(codigoPedido(ref.id), items, total, cliente);
   }).catch(function () {
     // Si no se pudo guardar, igual dejamos enviar el pedido por WhatsApp.
@@ -760,7 +761,7 @@ function traerCatalogo() {
     if (s.exists()) {
       var d = s.data();
       var datos = { libros: (d.libros || []).map(function (x) { return normalizar(x); }), categorias: d.categorias || [], subcategorias: d.subcategorias || {},
-        vendidos: d.vendidos || {}, secciones: d.secciones || {}, campanas: d.campanas || [], anuncio: d.anuncio || null };
+        vendidos: d.vendidos || {}, secciones: d.secciones || {}, campanas: d.campanas || [], anuncio: d.anuncio || null, banners: d.banners || [] };
       guardarCache(datos);
       return datos;
     }
@@ -789,6 +790,7 @@ if (!configurado) {
     vendidos = datos.vendidos || {};
     campanas = datos.campanas || [];
     pintarAnuncio(datos.anuncio);
+    pintarBanners(datos.banners || []);
     ajustesSecciones = datos.secciones || {};
     limpiarCarrito();
     pintarContador();
@@ -826,4 +828,127 @@ function pintarAnuncio(a) {
     try { sessionStorage.setItem("psb-anuncio-cerrado", a.texto); } catch (e) {}
   };
   $("anuncio-ver").onclick = function () { elegirCategoria(OFERTAS, true); };
+}
+
+// Aviso instantáneo a Telegram (si está configurado en config.js). Solo se envía el número
+// interno del pedido: el programa de avisos lo comprueba en Firebase antes de avisar.
+function avisarPedido(id) {
+  if (!T.avisoPedidos) return;
+  try {
+    fetch(T.avisoPedidos, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ id: id }), keepalive: true })
+      .catch(function () {});
+  } catch (e) {}
+}
+
+// ---------- Banners principales (carrusel de portada) ----------
+var SEGUNDOS_BANNER = 6;
+var bannerIndice = 0, bannerTimer = null, bannerPausa = false, bannersActivos = [];
+var esCelular = window.matchMedia("(max-width: 640px)");
+
+function pintarBanners(lista) {
+  bannersActivos = (lista || []).filter(function (b) { return b && b.activo !== false && vigente(b.hasta, b.desde); });
+  var $b = $("banners");
+  if (!bannersActivos.length) { $b.hidden = true; $("portada").hidden = false; return; }
+  $("portada").hidden = true;
+  $b.hidden = false;
+  $b.classList.toggle("banners--uno", bannersActivos.length === 1);
+  $("banners-pista").innerHTML = bannersActivos.map(function (b, i) {
+    var conTexto = b.titulo || b.subtitulo || b.boton;
+    var accion = b.destinoTipo ? ' data-banner-ir="' + i + '"' : "";
+    return '<div class="banner' + (conTexto ? "" : " banner--solo-imagen") + (b.cel ? "" : " banner--sin-cel") + (b.destinoTipo && !b.boton ? " banner--clic" : "") + '"' +
+      (b.destinoTipo && !b.boton ? accion : "") + ' role="group" aria-roledescription="diapositiva" aria-label="' + (i + 1) + " de " + bannersActivos.length + '">' +
+      '<div class="banner__fondo" data-banner-img="' + i + '"></div>' +
+      (conTexto ? '<div class="contenedor banner__contenido">' +
+        (b.titulo ? '<h2 class="banner__titulo">' + escapar(b.titulo) + "</h2>" : "") +
+        (b.subtitulo ? '<p class="banner__subtitulo"><span>' + escapar(b.subtitulo) + "</span></p>" : "") +
+        (b.boton && b.destinoTipo ? '<button type="button" class="banner__boton"' + accion + ">" + escapar(b.boton) + "</button>" : "") +
+      "</div>" : "") +
+    "</div>";
+  }).join("");
+  $("banners-puntos").innerHTML = bannersActivos.length > 1 ? bannersActivos.map(function (b, i) {
+    return '<button type="button" class="banners__punto" data-banner-punto="' + i + '" aria-label="Ir al banner ' + (i + 1) + '"></button>';
+  }).join("") : "";
+  // La primera foto se carga de inmediato; las demás justo después.
+  cargarFotoBanner(0).then(function () { for (var i = 1; i < bannersActivos.length; i++) cargarFotoBanner(i); });
+  var pista = $("banners-pista");
+  pista.addEventListener("scroll", function () {
+    var i = Math.round(pista.scrollLeft / Math.max(1, pista.clientWidth));
+    if (i !== bannerIndice) { bannerIndice = i; marcarPuntoBanner(); }
+  }, { passive: true });
+  bannerIndice = 0; marcarPuntoBanner(); programarBanner();
+}
+
+var fotosBanner = {};
+function cargarFotoBanner(i) {
+  var b = bannersActivos[i];
+  if (!b) return Promise.resolve();
+  var cel = esCelular.matches && b.cel;
+  var clave = b.id + (cel ? "_cel" : "");
+  var listo = fotosBanner[clave] ? Promise.resolve(fotosBanner[clave])
+    : getDoc(doc(db, "banners", clave)).then(function (s) { fotosBanner[clave] = s.exists() ? s.data().imagen : ""; return fotosBanner[clave]; })
+      .catch(function () { return ""; });
+  return listo.then(function (url) {
+    var el = document.querySelector('[data-banner-img="' + i + '"]');
+    if (el && url) { el.style.backgroundImage = 'url("' + url + '")'; el.classList.add("banner__fondo--listo"); }
+  });
+}
+esCelular.addEventListener && esCelular.addEventListener("change", function () {
+  bannersActivos.forEach(function (b, i) { if (b.cel) cargarFotoBanner(i); });
+});
+
+function marcarPuntoBanner() {
+  document.querySelectorAll("[data-banner-punto]").forEach(function (p) {
+    var activo = Number(p.dataset.bannerPunto) === bannerIndice;
+    p.classList.toggle("banners__punto--activo", activo);
+    if (activo) p.setAttribute("aria-current", "true"); else p.removeAttribute("aria-current");
+  });
+}
+function irABanner(i, suave) {
+  var pista = $("banners-pista"), n = bannersActivos.length;
+  if (!n) return;
+  bannerIndice = (i + n) % n;
+  pista.scrollTo({ left: bannerIndice * pista.clientWidth, behavior: suave === false ? "auto" : "smooth" });
+  marcarPuntoBanner();
+}
+function programarBanner() {
+  clearTimeout(bannerTimer);
+  var sinMovimiento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (bannersActivos.length < 2 || sinMovimiento) return;
+  bannerTimer = setTimeout(function () {
+    if (!bannerPausa && !document.hidden) irABanner(bannerIndice + 1);
+    programarBanner();
+  }, SEGUNDOS_BANNER * 1000);
+}
+(function () {
+  var $b = $("banners");
+  $b.addEventListener("mouseenter", function () { bannerPausa = true; });
+  $b.addEventListener("mouseleave", function () { bannerPausa = false; });
+  $b.addEventListener("focusin", function () { bannerPausa = true; });
+  $b.addEventListener("focusout", function () { bannerPausa = false; });
+  $b.addEventListener("touchstart", function () { bannerPausa = true; programarBanner(); }, { passive: true });
+  $b.addEventListener("touchend", function () { setTimeout(function () { bannerPausa = false; }, 4000); }, { passive: true });
+  window.addEventListener("resize", function () { if (bannersActivos.length) irABanner(bannerIndice, false); });
+  $b.addEventListener("click", function (e) {
+    var f = e.target.closest("[data-banner-flecha]");
+    if (f) { irABanner(bannerIndice + Number(f.dataset.bannerFlecha)); programarBanner(); return; }
+    var p = e.target.closest("[data-banner-punto]");
+    if (p) { irABanner(Number(p.dataset.bannerPunto)); programarBanner(); return; }
+    var ir = e.target.closest("[data-banner-ir]");
+    if (ir) abrirDestinoBanner(bannersActivos[Number(ir.dataset.bannerIr)]);
+  });
+})();
+
+function abrirDestinoBanner(b) {
+  if (!b) return;
+  if (b.destinoTipo === "libro") {
+    var l = libroPorId(b.destino);
+    if (l) abrirDetalle(l.id); else avisar("Ese libro ya no está disponible.");
+  } else if (b.destinoTipo === "categoria") {
+    if (libros.some(function (l) { return l.categoria === b.destino; })) elegirCategoria(b.destino, true);
+    else avisar("Pronto tendremos libros en esa categoría.");
+  } else if (b.destinoTipo === "ofertas") {
+    if (libros.some(enOferta)) elegirCategoria(OFERTAS, true); else avisar("No hay ofertas en este momento.");
+  } else if (b.destinoTipo === "enlace" && /^https?:\/\//i.test(b.destino || "")) {
+    window.open(b.destino, "_blank", "noopener");
+  }
 }

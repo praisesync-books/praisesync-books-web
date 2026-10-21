@@ -51,6 +51,7 @@
         <a href="#categorias" data-pestana="categorias">Categorías</a>
         <a href="#inicio" data-pestana="inicio">Página principal</a>
         <a href="#ofertas" data-pestana="ofertas">Ofertas</a>
+        <a href="#banners" data-pestana="banners">Banners</a>
         <a href="#respaldo" data-pestana="respaldo">Respaldo</a>
       </nav>
     </header>
@@ -115,6 +116,24 @@
         </form>
         <ul class="lista-categorias" id="lista-categorias"></ul>
         <p class="ayuda ayuda--izq">El orden de esta lista es el orden de los botones de categoría en la tienda. Las subcategorías aparecen en la tienda al tocar su categoría.</p>
+      </section>
+
+      <!-- BANNERS -->
+      <section data-seccion="banners" hidden>
+        <div class="titulo-fila"><h1>Banners</h1>
+          <button class="boton boton--acento" type="button" id="nuevo-banner">+ Nuevo banner</button></div>
+        <p class="ayuda ayuda--izq">Los banners son las fotos grandes de arriba de la tienda. Si hay más de uno, cambian solos cada 6 segundos.
+          Si no hay ninguno activo, se ve la franja azul de siempre. Máximo 5.</p>
+        <div class="lista-banners" id="lista-banners"></div>
+        <div class="bloque consejos-banner">
+          <h2>Consejos para las fotos</h2>
+          <ul>
+            <li><b>Computador:</b> horizontal, 1600 × 600 píxeles.</li>
+            <li><b>Celular (opcional):</b> vertical, 800 × 1000 píxeles. Si no la subes, se usa la de computador recortada.</li>
+            <li>Deja el producto a la <b>derecha</b> y espacio libre a la <b>izquierda</b> para el texto.</li>
+            <li>Si diseñas el banner en Canva con el texto incluido, deja vacíos el título, el subtítulo y el botón.</li>
+          </ul>
+        </div>
       </section>
 
       <!-- RESPALDO -->
@@ -211,6 +230,67 @@
       </section>
     </main>
   </div>
+
+  <!-- Editor de banner -->
+  <dialog class="modal modal--ancho" id="modal-banner" aria-labelledby="titulo-modal-banner">
+    <form id="form-banner" method="dialog">
+      <div class="cajon__cabecera">
+        <h2 id="titulo-modal-banner">Nuevo banner</h2>
+        <button class="icono-boton" type="button" data-cerrar aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="modal__cuerpo">
+        <div class="vista-banner" id="vista-banner">
+          <div class="vista-banner__fondo" id="vista-banner-fondo"></div>
+          <div class="vista-banner__contenido">
+            <span class="vista-banner__titulo" id="vista-banner-titulo"></span>
+            <span class="vista-banner__subtitulo" id="vista-banner-subtitulo"></span>
+            <span class="vista-banner__boton" id="vista-banner-boton"></span>
+          </div>
+          <span class="vista-banner__etiqueta">Vista previa</span>
+        </div>
+        <div class="dos-campos">
+          <div class="campo"><span>Foto para computador *</span>
+            <label class="boton boton--contorno">Elegir foto<input type="file" id="input-banner" accept="image/*" hidden></label></div>
+          <div class="campo"><span>Foto para celular <small>(opcional)</small></span>
+            <div class="fila-botones">
+              <label class="boton boton--contorno">Elegir foto<input type="file" id="input-banner-cel" accept="image/*" hidden></label>
+              <span class="mini-cel" id="mini-cel"></span>
+              <button class="boton boton--texto" type="button" id="quitar-banner-cel" hidden>Quitar</button>
+            </div></div>
+        </div>
+        <label class="campo"><span>Título <small>(opcional)</small></span><input name="titulo" maxlength="50" placeholder="Biblia Palabra Clave"></label>
+        <label class="campo"><span>Subtítulo <small>(opcional)</small></span><input name="subtitulo" maxlength="110" placeholder="Tu próxima Biblia de estudio, ¡está aquí!"></label>
+        <div class="dos-campos">
+          <label class="campo"><span>Al tocar el banner, llevar a…</span>
+            <select name="destinoTipo" id="banner-destino-tipo">
+              <option value="">No lleva a ningún lado</option>
+              <option value="libro">Un libro</option>
+              <option value="categoria">Una categoría</option>
+              <option value="ofertas">Las ofertas</option>
+              <option value="enlace">Un enlace (otra página)</option>
+            </select></label>
+          <label class="campo"><span>Texto del botón <small>(opcional)</small></span><input name="boton" maxlength="24" placeholder="Consíguela aquí"></label>
+        </div>
+        <label class="campo" id="campo-banner-libro" hidden><span>Libro</span><select name="libro" id="banner-libro"></select></label>
+        <label class="campo" id="campo-banner-categoria" hidden><span>Categoría</span><select name="categoria" id="banner-categoria"></select></label>
+        <label class="campo" id="campo-banner-enlace" hidden><span>Enlace</span><input name="enlace" type="url" placeholder="https://…"></label>
+        <p class="ayuda ayuda--izq">Si eliges a dónde lleva pero dejas el botón vacío, se puede tocar todo el banner.</p>
+        <div class="dos-campos">
+          <label class="campo"><span>Mostrar desde <small>(opcional)</small></span><input name="desde" type="date"></label>
+          <label class="campo"><span>Mostrar hasta <small>(opcional)</small></span><input name="hasta" type="date"></label>
+        </div>
+        <label class="interruptor"><input type="checkbox" name="activo" checked> <span>Activo</span></label>
+        <p class="error" id="error-banner" hidden></p>
+      </div>
+      <div class="modal__pie">
+        <span class="espaciador"></span>
+        <button class="boton boton--contorno" type="button" data-cerrar>Cancelar</button>
+        <button class="boton boton--acento" type="submit" id="guardar-banner">Guardar banner</button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- Editor de libro -->
   <dialog class="modal" id="modal-libro" aria-labelledby="titulo-modal-libro">

@@ -13,10 +13,11 @@ var libros = [], categorias = [], pedidos = [];
 var ajustes = { destacados: true, ofertas: true, vendidos: true, novedades: true, categorias: {} };
 var campanas = [];     // [{id, nombre, categoria, subcategoria, porcentaje, desde, hasta, activa}]
 var anuncio = { activo: false, texto: "", hasta: "" };
-var ultimoRespaldo = "";   // fecha ISO del último respaldo descargado
+var ultimoRespaldo = "";
+var banners = [];          // [{id, titulo, subtitulo, boton, destinoTipo, destino, desde, hasta, activo, cel}]   // fecha ISO del último respaldo descargado
 // Guarda todo el documento de ajustes de la tienda (secciones, campañas y anuncio) de una vez.
 function guardarDocAjustes() {
-  return setDoc(doc(db, "tienda", "ajustes"), { secciones: ajustes, campanas: campanas, anuncio: anuncio, ultimoRespaldo: ultimoRespaldo });
+  return setDoc(doc(db, "tienda", "ajustes"), { secciones: ajustes, campanas: campanas, anuncio: anuncio, ultimoRespaldo: ultimoRespaldo, banners: banners });
 }
 var filtroPedidos = "pendiente";
 var libroEditando = null;   // id o null
@@ -147,6 +148,7 @@ function cargarAjustes() {
     campanas = Array.isArray(datos.campanas) ? datos.campanas : [];
     anuncio = datos.anuncio || { activo: false, texto: "", hasta: "" };
     ultimoRespaldo = datos.ultimoRespaldo || "";
+    banners = Array.isArray(datos.banners) ? datos.banners : [];
   });
 }
 function cargarTodo() {
@@ -198,6 +200,7 @@ function armarCatalogo() {
     secciones: ajustes,
     campanas: campanas.filter(function (c) { return c.activa !== false && vigente(c.hasta); }),
     anuncio: (anuncio.activo && anuncio.texto && vigente(anuncio.hasta)) ? anuncio : null,
+    banners: banners.filter(function (b) { return b.activo !== false && vigente(b.hasta); }),
     subcategorias: categorias.reduce(function (m, c) { if (subsDe(c).length) m[c.nombre] = subsDe(c); return m; }, {}),
     actualizado: serverTimestamp()
   };
@@ -224,7 +227,7 @@ function revisarCatalogo() {
     if (!s.exists()) return publicarCatalogo();
     // El ranking de "Más vendidos" cambia con el tiempo (ventana de 90 días): se actualiza al entrar.
     var d = s.data();
-    if (JSON.stringify(d.vendidos || {}) !== JSON.stringify(calcularVendidos()) || !d.secciones || !("campanas" in d)) return publicarCatalogo();
+    if (JSON.stringify(d.vendidos || {}) !== JSON.stringify(calcularVendidos()) || !d.secciones || !("campanas" in d) || !("banners" in d)) return publicarCatalogo();
   });
 }
 
@@ -304,7 +307,7 @@ function migrarFotos() {
 }
 
 // ---------- Pestañas ----------
-var PESTANAS = ["resumen", "pedidos", "libros", "categorias", "inicio", "ofertas", "respaldo"];
+var PESTANAS = ["resumen", "pedidos", "libros", "categorias", "inicio", "ofertas", "banners", "respaldo"];
 function pestanaActual() {
   var h = location.hash.replace("#", "");
   return PESTANAS.indexOf(h) !== -1 ? h : "resumen";
@@ -332,6 +335,7 @@ function pintarTodo() {
   if (p === "inicio") pintarInicio();
   if (p === "ofertas") pintarOfertas();
   if (p === "respaldo") pintarRespaldo();
+  if (p === "banners") pintarBannersPanel();
 }
 
 // ---------- Resumen ----------
@@ -1463,7 +1467,7 @@ function respaldoCompleto(conFotos) {
       var datos = {
         tipo: "respaldo-praisesync-books-web", version: 1, fecha: new Date().toISOString(), tienda: (window.TIENDA || {}).nombre || "",
         libros: aISO(libros), categorias: aISO(categorias),
-        ajustes: { secciones: ajustes, campanas: campanas, anuncio: anuncio },
+        ajustes: { secciones: ajustes, campanas: campanas, anuncio: anuncio, banners: banners },
         pedidos: aISO(r[0])
       };
       if (conFotos) { datos.portadas = r[1]; datos.interiores = r[2]; }
@@ -1507,4 +1511,183 @@ $("vista-panel").addEventListener("click", function (e) {
     avisar(msg);
   }).catch(function (err) { avisar(mensajeError(err), true); })
     .finally(function () { b.disabled = false; b.textContent = textoBoton; });
+});
+
+
+// ---------- Banners principales ----------
+var MAX_BANNERS = 5;
+var fotosBanners = {};   // "id" o "id_cel" -> dataURL
+var bannerEditando = null, fotoBanner = "", fotoBannerCel = "", fotoBannerOrig = "", fotoBannerCelOrig = "";
+function fotoDeBanner(clave) {
+  if (fotosBanners[clave] !== undefined) return Promise.resolve(fotosBanners[clave]);
+  return getDoc(doc(db, "banners", clave)).then(function (s) { fotosBanners[clave] = s.exists() ? s.data().imagen : ""; return fotosBanners[clave]; })
+    .catch(function () { return ""; });
+}
+function estadoBanner(b) {
+  var hoy = hoyISO();
+  if (b.activo === false) return ["Oculto", "pausada"];
+  if (b.hasta && hoy > b.hasta) return ["Terminado", "terminada"];
+  if (b.desde && hoy < b.desde) return ["Programado", "programada"];
+  return ["Visible", "activa"];
+}
+function textoDestino(b) {
+  if (b.destinoTipo === "libro") { var l = libros.find(function (x) { return x.id === b.destino; }); return "Libro: " + (l ? l.nombre : "(ya no existe)"); }
+  if (b.destinoTipo === "categoria") return "Categoría: " + b.destino;
+  if (b.destinoTipo === "ofertas") return "Ofertas";
+  if (b.destinoTipo === "enlace") return "Enlace: " + b.destino;
+  return "Sin enlace";
+}
+function pintarBannersPanel() {
+  $("nuevo-banner").disabled = banners.length >= MAX_BANNERS;
+  $("nuevo-banner").title = banners.length >= MAX_BANNERS ? "Máximo " + MAX_BANNERS + " banners" : "";
+  $("lista-banners").innerHTML = banners.length ? banners.map(function (b, i) {
+    var est = estadoBanner(b);
+    var fechas = b.desde || b.hasta ? " · " + (b.desde ? "desde " + fechaCorta(b.desde) : "") + (b.hasta ? " hasta " + fechaCorta(b.hasta) : "") : "";
+    return '<div class="fila-banner">' +
+      '<div class="categoria-fila__orden">' +
+        '<button type="button" class="icono-boton icono-boton--chico" data-mover-banner="' + i + '" data-dir="-1" aria-label="Subir"' + (i === 0 ? " disabled" : "") + ">↑</button>" +
+        '<button type="button" class="icono-boton icono-boton--chico" data-mover-banner="' + i + '" data-dir="1" aria-label="Bajar"' + (i === banners.length - 1 ? " disabled" : "") + ">↓</button>" +
+      "</div>" +
+      '<button type="button" class="fila-banner__mini" data-editar-banner="' + b.id + '" data-mini-banner="' + b.id + '" aria-label="Editar banner"></button>' +
+      '<div class="fila-banner__info"><strong>' + escapar(b.titulo || "(Solo imagen)") + ' <span class="estado-campana estado-campana--' + est[1] + '">' + est[0] + "</span></strong>" +
+        "<span>" + escapar(textoDestino(b)) + fechas + (b.cel ? " · 📱 con foto de celular" : "") + "</span></div>" +
+      '<div class="campana__acciones">' +
+        '<button type="button" class="boton boton--texto" data-editar-banner="' + b.id + '">Editar</button>' +
+        '<button type="button" class="boton boton--texto texto-error" data-borrar-banner="' + b.id + '">Eliminar</button>' +
+      "</div></div>";
+  }).join("") : '<p class="estado">Todavía no hay banners. Crea el primero con "+ Nuevo banner".</p>';
+  banners.forEach(function (b) {
+    fotoDeBanner(b.id).then(function (url) {
+      var el = document.querySelector('[data-mini-banner="' + b.id + '"]');
+      if (el && url) el.style.backgroundImage = 'url("' + url + '")';
+    });
+  });
+}
+
+function opcionesDestino(b) {
+  $("banner-libro").innerHTML = libros.filter(function (l) { return l.activo !== false; })
+    .sort(function (a, c) { return String(a.nombre).localeCompare(c.nombre, "es"); })
+    .map(function (l) { return '<option value="' + l.id + '"' + (b && b.destinoTipo === "libro" && b.destino === l.id ? " selected" : "") + ">" + escapar(l.nombre) + "</option>"; }).join("");
+  $("banner-categoria").innerHTML = categorias.map(function (c) {
+    return "<option" + (b && b.destinoTipo === "categoria" && b.destino === c.nombre ? " selected" : "") + ">" + escapar(c.nombre) + "</option>";
+  }).join("");
+}
+function mostrarCampoDestino() {
+  var t = $("banner-destino-tipo").value;
+  $("campo-banner-libro").hidden = t !== "libro";
+  $("campo-banner-categoria").hidden = t !== "categoria";
+  $("campo-banner-enlace").hidden = t !== "enlace";
+}
+function pintarVistaBanner() {
+  var f = $("form-banner");
+  $("vista-banner-fondo").style.backgroundImage = fotoBanner ? 'url("' + fotoBanner + '")' : "";
+  $("vista-banner-titulo").textContent = f.titulo.value.trim(); $("vista-banner-titulo").hidden = !f.titulo.value.trim();
+  $("vista-banner-subtitulo").textContent = f.subtitulo.value.trim(); $("vista-banner-subtitulo").hidden = !f.subtitulo.value.trim();
+  var conBoton = f.boton.value.trim() && f.destinoTipo.value;
+  $("vista-banner-boton").textContent = f.boton.value.trim(); $("vista-banner-boton").hidden = !conBoton;
+  $("mini-cel").style.backgroundImage = fotoBannerCel ? 'url("' + fotoBannerCel + '")' : "";
+  $("mini-cel").hidden = !fotoBannerCel; $("quitar-banner-cel").hidden = !fotoBannerCel;
+}
+function abrirEditorBanner(id) {
+  var b = id ? banners.find(function (x) { return x.id === id; }) : null;
+  bannerEditando = b ? b.id : null;
+  var f = $("form-banner");
+  f.reset();
+  $("titulo-modal-banner").textContent = b ? "Editar banner" : "Nuevo banner";
+  f.titulo.value = b ? b.titulo || "" : ""; f.subtitulo.value = b ? b.subtitulo || "" : ""; f.boton.value = b ? b.boton || "" : "";
+  f.destinoTipo.value = b ? b.destinoTipo || "" : "";
+  f.enlace.value = b && b.destinoTipo === "enlace" ? b.destino || "" : "";
+  f.desde.value = b ? b.desde || "" : ""; f.hasta.value = b ? b.hasta || "" : "";
+  f.activo.checked = b ? b.activo !== false : true;
+  opcionesDestino(b); mostrarCampoDestino();
+  $("error-banner").hidden = true;
+  fotoBanner = fotoBannerCel = fotoBannerOrig = fotoBannerCelOrig = "";
+  pintarVistaBanner();
+  if (b) {
+    fotoDeBanner(b.id).then(function (u) { if (bannerEditando === b.id) { fotoBanner = fotoBannerOrig = u; pintarVistaBanner(); } });
+    if (b.cel) fotoDeBanner(b.id + "_cel").then(function (u) { if (bannerEditando === b.id) { fotoBannerCel = fotoBannerCelOrig = u; pintarVistaBanner(); } });
+  }
+  $("modal-banner").showModal();
+}
+
+$("nuevo-banner").addEventListener("click", function () { abrirEditorBanner(null); });
+$("banner-destino-tipo").addEventListener("change", function () { mostrarCampoDestino(); pintarVistaBanner(); });
+["titulo", "subtitulo", "boton"].forEach(function (n) { $("form-banner")[n].addEventListener("input", pintarVistaBanner); });
+$("modal-banner").addEventListener("click", function (e) {
+  if (e.target.closest("[data-cerrar]") || e.target === $("modal-banner")) $("modal-banner").close();
+});
+$("input-banner").addEventListener("change", function (e) {
+  var a = e.target.files && e.target.files[0]; e.target.value = "";
+  if (!a) return;
+  comprimirFoto(a, 1600, 480000).then(function (u) { fotoBanner = u; $("error-banner").hidden = true; pintarVistaBanner(); })
+    .catch(function () { avisar("No se pudo leer esa imagen", true); });
+});
+$("input-banner-cel").addEventListener("change", function (e) {
+  var a = e.target.files && e.target.files[0]; e.target.value = "";
+  if (!a) return;
+  comprimirFoto(a, 1000, 360000).then(function (u) { fotoBannerCel = u; pintarVistaBanner(); })
+    .catch(function () { avisar("No se pudo leer esa imagen", true); });
+});
+$("quitar-banner-cel").addEventListener("click", function () { fotoBannerCel = ""; pintarVistaBanner(); });
+
+$("form-banner").addEventListener("submit", function (e) {
+  e.preventDefault();
+  var f = e.target, $err = $("error-banner"), $btn = $("guardar-banner");
+  var tipo = f.destinoTipo.value;
+  var destino = tipo === "libro" ? f.libro.value : tipo === "categoria" ? f.categoria.value : tipo === "enlace" ? f.enlace.value.trim() : "";
+  var problema = !fotoBanner ? "Elige la foto para computador."
+    : (tipo === "libro" || tipo === "categoria") && !destino ? "Elige a qué " + (tipo === "libro" ? "libro" : "categoría") + " lleva el banner."
+    : tipo === "enlace" && !/^https?:\/\/\S+\.\S+/i.test(destino) ? "Escribe un enlace completo, que empiece por https://"
+    : f.desde.value && f.hasta.value && f.hasta.value < f.desde.value ? "La fecha final debe ser después de la inicial." : "";
+  $err.hidden = !problema; $err.textContent = problema;
+  if (problema) return;
+  var id = bannerEditando || ("b" + Date.now().toString(36));
+  var datos = {
+    id: id, titulo: f.titulo.value.trim(), subtitulo: f.subtitulo.value.trim(), boton: f.boton.value.trim(),
+    destinoTipo: tipo, destino: destino, desde: f.desde.value || "", hasta: f.hasta.value || "",
+    activo: f.activo.checked, cel: !!fotoBannerCel
+  };
+  var antes = JSON.stringify(banners);
+  var i = banners.findIndex(function (x) { return x.id === id; });
+  if (i === -1) banners.push(datos); else banners[i] = datos;
+  $btn.disabled = true; $btn.textContent = "Guardando…";
+  var lote = writeBatch(db);
+  lote.set(doc(db, "tienda", "ajustes"), { secciones: ajustes, campanas: campanas, anuncio: anuncio, ultimoRespaldo: ultimoRespaldo, banners: banners });
+  if (fotoBanner !== fotoBannerOrig) lote.set(doc(db, "banners", id), { imagen: fotoBanner });
+  if (fotoBannerCel !== fotoBannerCelOrig) {
+    if (fotoBannerCel) lote.set(doc(db, "banners", id + "_cel"), { imagen: fotoBannerCel });
+    else lote.delete(doc(db, "banners", id + "_cel"));
+  }
+  lote.commit().then(function () {
+    fotosBanners[id] = fotoBanner; fotosBanners[id + "_cel"] = fotoBannerCel;
+    $("modal-banner").close(); pintarBannersPanel(); avisar(i === -1 ? "Banner creado" : "Banner actualizado");
+    return publicarCatalogo();
+  }).catch(function (err) {
+    banners = JSON.parse(antes); $err.hidden = false; $err.textContent = mensajeError(err);
+  }).finally(function () { $btn.disabled = false; $btn.textContent = "Guardar banner"; });
+});
+
+$("lista-banners").addEventListener("click", function (e) {
+  var ed = e.target.closest("[data-editar-banner]");
+  if (ed) { abrirEditorBanner(ed.dataset.editarBanner); return; }
+  var mv = e.target.closest("[data-mover-banner]");
+  var del = e.target.closest("[data-borrar-banner]");
+  if (!mv && !del) return;
+  var antes = JSON.stringify(banners);
+  var lote = writeBatch(db), mensaje;
+  if (mv) {
+    var a = Number(mv.dataset.moverBanner), c = a + Number(mv.dataset.dir);
+    if (c < 0 || c >= banners.length) return;
+    var t = banners[a]; banners[a] = banners[c]; banners[c] = t;
+    mensaje = "Orden actualizado";
+  } else {
+    var b = banners.find(function (x) { return x.id === del.dataset.borrarBanner; });
+    if (!b || !confirm("¿Eliminar el banner \"" + (b.titulo || "sin título") + "\"?")) return;
+    banners = banners.filter(function (x) { return x.id !== b.id; });
+    lote.delete(doc(db, "banners", b.id)); lote.delete(doc(db, "banners", b.id + "_cel"));
+    mensaje = "Banner eliminado";
+  }
+  lote.set(doc(db, "tienda", "ajustes"), { secciones: ajustes, campanas: campanas, anuncio: anuncio, ultimoRespaldo: ultimoRespaldo, banners: banners });
+  lote.commit().then(function () { pintarBannersPanel(); avisar(mensaje); return publicarCatalogo(); })
+    .catch(function (err) { banners = JSON.parse(antes); pintarBannersPanel(); avisar(mensajeError(err), true); });
 });

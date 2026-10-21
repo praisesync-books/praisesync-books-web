@@ -11,6 +11,10 @@ window.TIENDA = {
   // Mensaje del botón flotante de WhatsApp.
   mensajeGeneral: "Hola, vengo de la tienda PraiseSync Books Web y tengo una pregunta.",
 
+  // Dirección del programa de avisos por Telegram (Cloudflare Workers).
+  // Déjalo vacío ("") si no quieres avisos. Ver bot-telegram/GUIA.md
+  avisoPedidos: "",
+
   // Datos de Firebase: pega aquí el bloque firebaseConfig de tu proyecto.
   // (No son secretos; la seguridad la ponen las reglas de Firestore.)
   firebase: {

@@ -39,6 +39,7 @@ Firebase → **Authentication → Usuarios → Agregar usuario**, y agrega su co
 - **Ofertas:** barra de anuncio (franja roja arriba de la tienda), campañas de descuento por categoría con fechas,
   y la lista de libros con precio de oferta propio. El precio de oferta de cada libro se pone al editarlo.
   Las ofertas y campañas se activan y se quitan solas según sus fechas.
+- **Banners:** hasta 5 fotos grandes arriba de la tienda (con título, subtítulo y botón que lleva a un libro, una categoría, las ofertas o un enlace). Cambian solos cada 6 segundos y se pueden programar con fechas.
 - **Respaldo:** descarga los libros (Excel, se pueden volver a importar), los pedidos (Excel) o un respaldo completo (archivo .json, con fotos opcionales). El Resumen te recuerda si pasa un mes sin respaldo.
 - **Página principal:** activa u oculta cada carrusel (Destacados, Más vendidos, Novedades y uno por categoría). "Todos los libros" siempre aparece debajo.
 - **Categorías y subcategorías:** crea, renombra (actualiza todos sus libros), ordena con ↑ ↓ y elimina. Cada categoría puede tener subcategorías (ej. Biblias › Letra grande).
@@ -58,6 +59,11 @@ Las fotos se agregan después, editando cada libro.
 - El enlace sigue funcionando aunque cambies el nombre del libro.
 - Al pegar cualquier enlace de la tienda en WhatsApp o Facebook aparece la imagen `img/compartir.jpg` con el logo.
   Si cambias de dominio, actualiza la dirección en las etiquetas `og:url` y `og:image` de `index.html`.
+
+## Avisos de pedidos por Telegram (opcional)
+
+Te llega un mensaje a Telegram con cada pedido nuevo, al instante. Se activa siguiendo `bot-telegram/GUIA.md`
+(Cloudflare Workers, gratis). Para apagarlo, deja `avisoPedidos: ""` en `config.js`.
 
 ## Notas
 

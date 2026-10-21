@@ -54,7 +54,15 @@
   </header>
 
   <main>
-    <section class="portada">
+    <!-- Banners principales (se manejan desde el panel). Si no hay, se ve la franja azul. -->
+    <section class="banners" id="banners" aria-roledescription="carrusel" aria-label="Promociones" hidden>
+      <div class="banners__pista" id="banners-pista"></div>
+      <button type="button" class="banners__flecha banners__flecha--izq" data-banner-flecha="-1" aria-label="Anterior">‹</button>
+      <button type="button" class="banners__flecha banners__flecha--der" data-banner-flecha="1" aria-label="Siguiente">›</button>
+      <div class="banners__puntos" id="banners-puntos"></div>
+    </section>
+
+    <section class="portada" id="portada">
       <div class="contenedor">
         <h1>Libros y Biblias</h1>
         <p>Agrega los libros a tu pedido y envíalo por WhatsApp.<br>Coordinamos el pago y la entrega directamente contigo.</p>

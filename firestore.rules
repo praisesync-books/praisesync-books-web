@@ -12,6 +12,13 @@ service cloud.firestore {
         && request.auth.token.email in ['leonar92004@gmail.com'];
     }
 
+    // Cuenta del programa de avisos por Telegram: solo puede LEER pedidos.
+    // Cambia el correo si usaste otro al crearla en Firebase → Authentication.
+    function esBot() {
+      return request.auth != null
+        && request.auth.token.email == 'bot-telegram@praisesync-books.firebaseapp.com';
+    }
+
     // Un pedido nuevo desde la tienda solo puede traer estos datos.
     function pedidoValido() {
       let d = request.resource.data;
@@ -58,10 +65,17 @@ service cloud.firestore {
       allow write: if esAdmin();
     }
 
+    // Fotos de los banners principales.
+    match /banners/{id} {
+      allow read: if true;
+      allow write: if esAdmin();
+    }
+
     // Pedidos: cualquiera puede crear uno desde la tienda; solo administración los ve y los cambia.
     match /pedidos/{id} {
       allow create: if esAdmin() || pedidoValido();
-      allow read, update, delete: if esAdmin();
+      allow read: if esAdmin() || esBot();
+      allow update, delete: if esAdmin();
     }
   }
 }

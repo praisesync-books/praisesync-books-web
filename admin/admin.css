@@ -255,3 +255,23 @@ label.boton { cursor: pointer; }
 .respaldo-tarjeta .boton { margin-top: auto; }
 .recordatorio { background: #fdf0d5; color: #6b4600; border: 1px solid #f3d9a4; border-radius: 12px; padding: 12px 16px; font-weight: 500; }
 .recordatorio a { color: var(--acento); font-weight: 700; margin-left: 6px; }
+
+/* Banners en el panel */
+.lista-banners { display: flex; flex-direction: column; gap: 10px; }
+.fila-banner { display: flex; align-items: center; gap: 14px; background: var(--superficie); border: 1px solid var(--borde); border-radius: 12px; padding: 10px 12px; flex-wrap: wrap; }
+.fila-banner__mini { width: 160px; height: 60px; flex: none; border-radius: 8px; border: 1px solid var(--borde); cursor: pointer;
+  background: linear-gradient(135deg, #0a1f5c, #0b4fd1) center / cover no-repeat; }
+.fila-banner__info { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
+.fila-banner__info span { font-size: .85rem; color: var(--suave); }
+.consejos-banner ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: .9rem; color: var(--suave); }
+.modal--ancho { width: min(760px, calc(100% - 24px)); }
+.vista-banner { position: relative; aspect-ratio: 8 / 3; border-radius: 12px; overflow: hidden; background: var(--marino); }
+.vista-banner__fondo { position: absolute; inset: 0; background: linear-gradient(135deg, #0a1f5c, #0b4fd1 60%, #14a0f0) center / cover no-repeat; }
+.vista-banner__contenido { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 6px; padding: 0 5%; }
+.vista-banner__titulo { background: var(--marino); color: #fff; padding: 5px 10px; border-radius: 6px; font: 800 clamp(.9rem, 2.6vw, 1.5rem) "Montserrat", "Inter", sans-serif; }
+.vista-banner__subtitulo { background: rgba(10, 20, 45, .72); color: #fff; padding: 2px 8px; border-radius: 5px; font-weight: 600; font-size: clamp(.7rem, 1.6vw, .9rem); max-width: 70%; }
+.vista-banner__boton { margin-top: 4px; background: var(--acento); color: #fff; border-radius: 999px; padding: 5px 14px; font-weight: 700; font-size: .8rem; }
+.vista-banner__etiqueta { position: absolute; top: 8px; right: 8px; background: rgba(0, 0, 0, .55); color: #fff; font-size: .7rem; padding: 2px 8px; border-radius: 999px; }
+.fila-botones { display: flex; align-items: center; gap: 8px; }
+.mini-cel { width: 32px; height: 40px; border-radius: 4px; background: center / cover no-repeat; border: 1px solid var(--borde); }
+.vista-banner { flex-shrink: 0; }

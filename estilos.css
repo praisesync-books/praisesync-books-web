@@ -476,3 +476,61 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 .anuncio__ver { background: #fff; color: #c0262d; border: 0; border-radius: 999px; padding: 4px 12px; font: 700 .82rem "Inter", sans-serif; cursor: pointer; white-space: nowrap; }
 .anuncio__cerrar { background: none; border: 0; color: #fff; font-size: 1.3rem; line-height: 1; cursor: pointer; opacity: .85; padding: 0 4px; }
 @media (max-width: 520px) { .anuncio { font-size: .8rem; } .anuncio__fila { gap: 8px; } }
+
+/* ---------- Banners principales ---------- */
+.banners { position: relative; margin-bottom: 24px; background: var(--marino); overflow: hidden; }
+.banners__pista { display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
+.banners__pista::-webkit-scrollbar { display: none; }
+.banner {
+  position: relative; flex: 0 0 100%; scroll-snap-align: start;
+  aspect-ratio: 8 / 3; max-height: 460px; min-height: 260px; display: flex; align-items: center;
+}
+.banner--clic { cursor: pointer; }
+.banner__fondo {
+  position: absolute; inset: 0; background: linear-gradient(135deg, #0a1f5c 0%, #0b4fd1 60%, #14a0f0 100%) center / cover no-repeat;
+  transition: opacity .4s; opacity: .55;
+}
+.banner__fondo--listo { opacity: 1; }
+.banner__contenido { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.banner__titulo {
+  margin: 0; background: var(--marino); color: #fff; padding: 10px 18px; border-radius: 8px;
+  font: 800 clamp(1.4rem, 3.4vw, 2.6rem) / 1.15 "Montserrat", "Inter", sans-serif; letter-spacing: -.01em; max-width: 620px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+}
+.banner__subtitulo { margin: 0; max-width: 560px; }
+.banner__subtitulo span {
+  background: rgba(10, 20, 45, .72); color: #fff; padding: 4px 10px; border-radius: 6px; line-height: 1.75;
+  font-weight: 600; font-size: clamp(.95rem, 1.7vw, 1.25rem); -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+.banner__boton {
+  margin-top: 10px; background: var(--acento); color: #fff; border: 0; border-radius: 999px; padding: 12px 26px;
+  font: 700 1rem "Inter", sans-serif; cursor: pointer; box-shadow: 0 6px 18px rgba(11, 79, 209, .35); transition: transform .15s, background .15s;
+}
+.banner__boton:hover { background: var(--acento-hover); transform: translateY(-1px); }
+.banners__flecha {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 42px; height: 42px; border-radius: 50%; border: 0;
+  background: rgba(255, 255, 255, .85); color: var(--marino); font-size: 1.7rem; line-height: 1; cursor: pointer; padding-bottom: 4px;
+  opacity: 0; transition: opacity .2s;
+}
+.banners:hover .banners__flecha, .banners__flecha:focus-visible { opacity: 1; }
+.banners__flecha--izq { left: 14px; } .banners__flecha--der { right: 14px; }
+.banners--uno .banners__flecha { display: none; }
+.banners__puntos { position: absolute; left: 0; right: 0; bottom: 12px; display: flex; justify-content: center; gap: 8px; z-index: 2; }
+.banners__punto { width: 9px; height: 9px; border-radius: 999px; border: 0; padding: 0; background: rgba(255, 255, 255, .6); box-shadow: 0 0 0 1px rgba(0, 0, 0, .15); cursor: pointer; transition: width .2s, background .2s; }
+.banners__punto--activo { width: 26px; background: #fff; }
+@media (max-width: 640px) {
+  .banner { aspect-ratio: 4 / 5; max-height: 72vh; min-height: 0; align-items: flex-end; }
+  .banner:not(.banner--solo-imagen) .banner__fondo::after {
+    content: ""; position: absolute; inset: 40% 0 0; background: linear-gradient(to top, rgba(8, 14, 30, .75), transparent);
+  }
+  .banner__contenido { padding-bottom: 40px; gap: 8px; }
+  .banner__titulo { padding: 8px 14px; }
+  .banner__boton { margin-top: 4px; }
+  .banners__flecha { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .banners__pista { scroll-behavior: auto; } }
+@media (max-width: 640px) {
+  /* Sin foto para celular: se usa la de computador, menos alta para no recortarla tanto */
+  .banner--sin-cel { aspect-ratio: 4 / 3; }
+  .banner--sin-cel.banner--solo-imagen { aspect-ratio: 8 / 3; }
+}
