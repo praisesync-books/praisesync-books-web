@@ -124,12 +124,21 @@
           <button class="boton boton--acento" type="button" id="nuevo-banner">+ Nuevo banner</button></div>
         <p class="ayuda ayuda--izq">Los banners son las fotos grandes de arriba de la tienda. Si hay más de uno, cambian solos cada 6 segundos.
           Si no hay ninguno activo, se ve la franja azul de siempre. Máximo 5.</p>
+        <div class="bloque altura-bloque">
+          <label class="campo"><span>Altura de los banners en la tienda</span>
+            <select id="altura-banners">
+              <option value="baja">Baja · igual que la franja azul</option>
+              <option value="media">Media</option>
+              <option value="alta">Alta · portada grande</option>
+            </select></label>
+          <p class="ayuda ayuda--izq" id="altura-ayuda"></p>
+        </div>
         <div class="lista-banners" id="lista-banners"></div>
         <div class="bloque consejos-banner">
           <h2>Consejos para las fotos</h2>
           <ul>
-            <li><b>Computador:</b> horizontal, 1600 × 600 píxeles.</li>
-            <li><b>Celular (opcional):</b> vertical, 800 × 1000 píxeles. Si no la subes, se usa la de computador recortada.</li>
+            <li id="consejo-foto"><b>Computador:</b> horizontal, 1600 × 600 píxeles.</li>
+            <li id="consejo-cel"><b>Celular (opcional):</b> vertical, 800 × 1000 píxeles. Si no la subes, se usa la de computador recortada.</li>
             <li>Deja el producto a la <b>derecha</b> y espacio libre a la <b>izquierda</b> para el texto.</li>
             <li>Si diseñas el banner en Canva con el texto incluido, deja vacíos el título, el subtítulo y el botón.</li>
           </ul>
@@ -253,7 +262,7 @@
         <div class="dos-campos">
           <div class="campo"><span>Foto para computador *</span>
             <label class="boton boton--contorno">Elegir foto<input type="file" id="input-banner" accept="image/*" hidden></label></div>
-          <div class="campo"><span>Foto para celular <small>(opcional)</small></span>
+          <div class="campo" id="campo-foto-cel"><span>Foto para celular <small>(opcional)</small></span>
             <div class="fila-botones">
               <label class="boton boton--contorno">Elegir foto<input type="file" id="input-banner-cel" accept="image/*" hidden></label>
               <span class="mini-cel" id="mini-cel"></span>

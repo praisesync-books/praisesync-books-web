@@ -14,10 +14,14 @@ var ajustes = { destacados: true, ofertas: true, vendidos: true, novedades: true
 var campanas = [];     // [{id, nombre, categoria, subcategoria, porcentaje, desde, hasta, activa}]
 var anuncio = { activo: false, texto: "", hasta: "" };
 var ultimoRespaldo = "";
+var bannerAltura = "baja"; // "baja" (como la franja azul), "media" o "alta"
+function datosAjustes() {
+  return { secciones: ajustes, campanas: campanas, anuncio: anuncio, ultimoRespaldo: ultimoRespaldo, banners: banners, bannerAltura: bannerAltura };
+}
 var banners = [];          // [{id, titulo, subtitulo, boton, destinoTipo, destino, desde, hasta, activo, cel}]   // fecha ISO del último respaldo descargado
 // Guarda todo el documento de ajustes de la tienda (secciones, campañas y anuncio) de una vez.
 function guardarDocAjustes() {
-  return setDoc(doc(db, "tienda", "ajustes"), { secciones: ajustes, campanas: campanas, anuncio: anuncio, ultimoRespaldo: ultimoRespaldo, banners: banners });
+  return setDoc(doc(db, "tienda", "ajustes"), datosAjustes());
 }
 var filtroPedidos = "pendiente";
 var libroEditando = null;   // id o null
@@ -149,6 +153,7 @@ function cargarAjustes() {
     anuncio = datos.anuncio || { activo: false, texto: "", hasta: "" };
     ultimoRespaldo = datos.ultimoRespaldo || "";
     banners = Array.isArray(datos.banners) ? datos.banners : [];
+    bannerAltura = datos.bannerAltura || "baja";
   });
 }
 function cargarTodo() {
@@ -201,6 +206,7 @@ function armarCatalogo() {
     campanas: campanas.filter(function (c) { return c.activa !== false && vigente(c.hasta); }),
     anuncio: (anuncio.activo && anuncio.texto && vigente(anuncio.hasta)) ? anuncio : null,
     banners: banners.filter(function (b) { return b.activo !== false && vigente(b.hasta); }),
+    bannerAltura: bannerAltura,
     subcategorias: categorias.reduce(function (m, c) { if (subsDe(c).length) m[c.nombre] = subsDe(c); return m; }, {}),
     actualizado: serverTimestamp()
   };
@@ -227,7 +233,7 @@ function revisarCatalogo() {
     if (!s.exists()) return publicarCatalogo();
     // El ranking de "Más vendidos" cambia con el tiempo (ventana de 90 días): se actualiza al entrar.
     var d = s.data();
-    if (JSON.stringify(d.vendidos || {}) !== JSON.stringify(calcularVendidos()) || !d.secciones || !("campanas" in d) || !("banners" in d)) return publicarCatalogo();
+    if (JSON.stringify(d.vendidos || {}) !== JSON.stringify(calcularVendidos()) || !d.secciones || !("campanas" in d) || !("banners" in d) || !("bannerAltura" in d)) return publicarCatalogo();
   });
 }
 
@@ -1538,6 +1544,7 @@ function textoDestino(b) {
   return "Sin enlace";
 }
 function pintarBannersPanel() {
+  pintarAltura();
   $("nuevo-banner").disabled = banners.length >= MAX_BANNERS;
   $("nuevo-banner").title = banners.length >= MAX_BANNERS ? "Máximo " + MAX_BANNERS + " banners" : "";
   $("lista-banners").innerHTML = banners.length ? banners.map(function (b, i) {
@@ -1652,7 +1659,7 @@ $("form-banner").addEventListener("submit", function (e) {
   if (i === -1) banners.push(datos); else banners[i] = datos;
   $btn.disabled = true; $btn.textContent = "Guardando…";
   var lote = writeBatch(db);
-  lote.set(doc(db, "tienda", "ajustes"), { secciones: ajustes, campanas: campanas, anuncio: anuncio, ultimoRespaldo: ultimoRespaldo, banners: banners });
+  lote.set(doc(db, "tienda", "ajustes"), datosAjustes());
   if (fotoBanner !== fotoBannerOrig) lote.set(doc(db, "banners", id), { imagen: fotoBanner });
   if (fotoBannerCel !== fotoBannerCelOrig) {
     if (fotoBannerCel) lote.set(doc(db, "banners", id + "_cel"), { imagen: fotoBannerCel });
@@ -1687,7 +1694,32 @@ $("lista-banners").addEventListener("click", function (e) {
     lote.delete(doc(db, "banners", b.id)); lote.delete(doc(db, "banners", b.id + "_cel"));
     mensaje = "Banner eliminado";
   }
-  lote.set(doc(db, "tienda", "ajustes"), { secciones: ajustes, campanas: campanas, anuncio: anuncio, ultimoRespaldo: ultimoRespaldo, banners: banners });
+  lote.set(doc(db, "tienda", "ajustes"), datosAjustes());
   lote.commit().then(function () { pintarBannersPanel(); avisar(mensaje); return publicarCatalogo(); })
     .catch(function (err) { banners = JSON.parse(antes); pintarBannersPanel(); avisar(mensajeError(err), true); });
+});
+
+// Altura de los banners: cambia el tamaño en la tienda y las recomendaciones de foto.
+var ALTURAS = {
+  baja:  { nombre: "Baja", detalle: "igual que la franja azul (unos 145 px)", foto: "1600 × 180", cel: false, proporcion: "1280 / 145" },
+  media: { nombre: "Media", detalle: "unos 280 px", foto: "1600 × 350", cel: false, proporcion: "1280 / 280" },
+  alta:  { nombre: "Alta", detalle: "unos 460 px, como una portada grande", foto: "1600 × 600", cel: true, proporcion: "8 / 3" }
+};
+function pintarAltura() {
+  var a = ALTURAS[bannerAltura] || ALTURAS.baja;
+  $("altura-banners").value = bannerAltura;
+  $("altura-ayuda").textContent = "Altura " + a.nombre.toLowerCase() + ": " + a.detalle + ". Foto recomendada: " + a.foto + " píxeles" +
+    (a.cel ? "; para celular, una vertical de 800 × 1000." : ". En esta altura se usa la misma foto en el celular.");
+  $("consejo-foto").innerHTML = "<b>Computador:</b> horizontal, " + a.foto + " píxeles.";
+  $("consejo-cel").hidden = !a.cel;
+  $("campo-foto-cel").hidden = !a.cel;
+  $("vista-banner").style.aspectRatio = a.proporcion;
+  $("vista-banner").className = "vista-banner vista-banner--" + bannerAltura;
+}
+$("altura-banners").addEventListener("change", function (e) {
+  var antes = bannerAltura;
+  bannerAltura = e.target.value;
+  pintarAltura();
+  guardarDocAjustes().then(publicarCatalogo).then(function () { avisar("Altura de los banners: " + ALTURAS[bannerAltura].nombre); })
+    .catch(function (err) { bannerAltura = antes; pintarAltura(); avisar(mensajeError(err), true); });
 });

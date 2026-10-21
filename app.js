@@ -761,7 +761,7 @@ function traerCatalogo() {
     if (s.exists()) {
       var d = s.data();
       var datos = { libros: (d.libros || []).map(function (x) { return normalizar(x); }), categorias: d.categorias || [], subcategorias: d.subcategorias || {},
-        vendidos: d.vendidos || {}, secciones: d.secciones || {}, campanas: d.campanas || [], anuncio: d.anuncio || null, banners: d.banners || [] };
+        vendidos: d.vendidos || {}, secciones: d.secciones || {}, campanas: d.campanas || [], anuncio: d.anuncio || null, banners: d.banners || [], bannerAltura: d.bannerAltura || "baja" };
       guardarCache(datos);
       return datos;
     }
@@ -790,6 +790,7 @@ if (!configurado) {
     vendidos = datos.vendidos || {};
     campanas = datos.campanas || [];
     pintarAnuncio(datos.anuncio);
+    bannerAltura = datos.bannerAltura || "baja";
     pintarBanners(datos.banners || []);
     ajustesSecciones = datos.secciones || {};
     limpiarCarrito();
@@ -842,6 +843,7 @@ function avisarPedido(id) {
 
 // ---------- Banners principales (carrusel de portada) ----------
 var SEGUNDOS_BANNER = 6;
+var bannerAltura = "baja";
 var bannerIndice = 0, bannerTimer = null, bannerPausa = false, bannersActivos = [];
 var esCelular = window.matchMedia("(max-width: 640px)");
 
@@ -852,10 +854,12 @@ function pintarBanners(lista) {
   $("portada").hidden = true;
   $b.hidden = false;
   $b.classList.toggle("banners--uno", bannersActivos.length === 1);
+  $b.classList.remove("banners--baja", "banners--media", "banners--alta");
+  $b.classList.add("banners--" + (["baja", "media", "alta"].indexOf(bannerAltura) !== -1 ? bannerAltura : "baja"));
   $("banners-pista").innerHTML = bannersActivos.map(function (b, i) {
     var conTexto = b.titulo || b.subtitulo || b.boton;
     var accion = b.destinoTipo ? ' data-banner-ir="' + i + '"' : "";
-    return '<div class="banner' + (conTexto ? "" : " banner--solo-imagen") + (b.cel ? "" : " banner--sin-cel") + (b.destinoTipo && !b.boton ? " banner--clic" : "") + '"' +
+    return '<div class="banner' + (conTexto ? "" : " banner--solo-imagen") + ((b.cel && bannerAltura === "alta") ? "" : " banner--sin-cel") + (b.destinoTipo && !b.boton ? " banner--clic" : "") + '"' +
       (b.destinoTipo && !b.boton ? accion : "") + ' role="group" aria-roledescription="diapositiva" aria-label="' + (i + 1) + " de " + bannersActivos.length + '">' +
       '<div class="banner__fondo" data-banner-img="' + i + '"></div>' +
       (conTexto ? '<div class="contenedor banner__contenido">' +
@@ -882,7 +886,7 @@ var fotosBanner = {};
 function cargarFotoBanner(i) {
   var b = bannersActivos[i];
   if (!b) return Promise.resolve();
-  var cel = esCelular.matches && b.cel;
+  var cel = esCelular.matches && b.cel && bannerAltura === "alta";   // la foto vertical solo tiene sentido en la altura alta
   var clave = b.id + (cel ? "_cel" : "");
   var listo = fotosBanner[clave] ? Promise.resolve(fotosBanner[clave])
     : getDoc(doc(db, "banners", clave)).then(function (s) { fotosBanner[clave] = s.exists() ? s.data().imagen : ""; return fotosBanner[clave]; })
