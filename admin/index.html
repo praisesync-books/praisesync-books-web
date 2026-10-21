@@ -50,6 +50,7 @@
         <a href="#libros" data-pestana="libros">Libros</a>
         <a href="#categorias" data-pestana="categorias">Categorías</a>
         <a href="#inicio" data-pestana="inicio">Página principal</a>
+        <a href="#ofertas" data-pestana="ofertas">Ofertas</a>
       </nav>
     </header>
 
@@ -112,6 +113,49 @@
         </form>
         <ul class="lista-categorias" id="lista-categorias"></ul>
         <p class="ayuda ayuda--izq">El orden de esta lista es el orden de los botones de categoría en la tienda. Las subcategorías aparecen en la tienda al tocar su categoría.</p>
+      </section>
+
+      <!-- OFERTAS -->
+      <section data-seccion="ofertas" hidden>
+        <div class="titulo-fila"><h1>Ofertas y descuentos</h1></div>
+
+        <div class="bloque">
+          <h2>Barra de anuncio <small>(franja roja arriba de la tienda)</small></h2>
+          <form class="form-anuncio" id="form-anuncio">
+            <label class="interruptor"><input type="checkbox" name="activo"> <span>Mostrar la barra</span></label>
+            <label class="campo"><span>Texto</span><input name="texto" maxlength="120" placeholder="🎄 Navidad: 15% en todas las Biblias hasta el 24 de diciembre"></label>
+            <div class="dos-campos">
+              <label class="campo"><span>Mostrar hasta <small>(opcional)</small></span><input name="hasta" type="date"></label>
+              <div class="campo campo--boton"><button class="boton boton--acento" type="submit">Guardar anuncio</button></div>
+            </div>
+            <div class="anuncio-vista" id="anuncio-vista"></div>
+          </form>
+        </div>
+
+        <div class="bloque">
+          <h2>Campañas de descuento <small>(un % para toda una categoría)</small></h2>
+          <form class="form-campana" id="form-campana">
+            <label class="campo"><span>Nombre de la campaña</span><input name="nombre" maxlength="40" required placeholder="Navidad 2026"></label>
+            <div class="dos-campos">
+              <label class="campo"><span>Categoría</span><select name="categoria" id="campana-categoria"></select></label>
+              <label class="campo"><span>Subcategoría <small>(opcional)</small></span><select name="subcategoria" id="campana-subcategoria"></select></label>
+            </div>
+            <div class="tres-campos">
+              <label class="campo"><span>Descuento (%)</span><input name="porcentaje" type="number" min="1" max="90" step="1" required placeholder="15"></label>
+              <label class="campo"><span>Desde</span><input name="desde" type="date" required></label>
+              <label class="campo"><span>Hasta</span><input name="hasta" type="date" required></label>
+            </div>
+            <p class="error" id="error-campana" hidden></p>
+            <button class="boton boton--acento" type="submit">+ Crear campaña</button>
+          </form>
+          <div class="lista-campanas" id="lista-campanas"></div>
+          <p class="ayuda ayuda--izq">Si un libro tiene su propio precio de oferta y además está en una campaña, el cliente ve el precio más bajo de los dos.</p>
+        </div>
+
+        <div class="bloque">
+          <h2>Libros con precio de oferta propio</h2>
+          <div id="lista-ofertas-libros"></div>
+        </div>
       </section>
 
       <!-- PÁGINA PRINCIPAL -->
@@ -182,6 +226,11 @@
           <label class="campo"><span>Precio (COP) *</span><input name="precio" required inputmode="numeric" placeholder="85000"></label>
           <label class="campo"><span>Stock *</span><input name="stock" required type="number" min="0" step="1" value="0"></label>
         </div>
+        <div class="dos-campos campos-oferta">
+          <label class="campo"><span>🏷️ Precio de oferta <small>(opcional)</small></span><input name="precioOferta" inputmode="numeric" placeholder="Ej: 68000"></label>
+          <label class="campo"><span>Oferta hasta <small>(opcional)</small></span><input name="ofertaHasta" type="date"></label>
+        </div>
+        <p class="ayuda ayuda--izq" id="ayuda-oferta">Deja el precio de oferta vacío si el libro no está en oferta. Sin fecha, la oferta sigue hasta que la quites.</p>
         <label class="campo"><span>Descripción <small id="contador-descripcion">0 / 3000</small></span><textarea name="descripcion" rows="5" maxlength="3000"></textarea></label>
         <label class="interruptor"><input type="checkbox" name="activo" checked> <span>Visible en la tienda</span></label>
         <label class="interruptor"><input type="checkbox" name="destacado"> <span>⭐ Destacado <small>(aparece en la sección "Destacados" de la página principal)</small></span></label>

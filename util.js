@@ -90,3 +90,38 @@ export function buscarPorSlug(lista, valor) {
 export function enlaceLibro(baseTienda, l) {
   return baseTienda.replace(/[?#].*$/, "") + "?libro=" + encodeURIComponent(slugLibro(l));
 }
+
+// ---------- Ofertas y descuentos ----------
+// Fechas como "AAAA-MM-DD" en la hora local del navegador (Colombia).
+export function hoyISO() {
+  var d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+export function vigente(hasta, desde) {
+  var hoy = hoyISO();
+  return (!desde || hoy >= desde) && (!hasta || hoy <= hasta);
+}
+var MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+export function fechaCorta(iso) {
+  if (!iso) return "";
+  var p = String(iso).split("-");
+  return Number(p[2]) + " " + MESES_CORTOS[Number(p[1]) - 1] + (p[0] !== String(new Date().getFullYear()) ? " " + p[0] : "");
+}
+// Precio que paga el cliente: el mejor entre la oferta del libro y las campañas activas que le apliquen.
+export function precioEfectivo(l, campanas) {
+  var base = typeof l.precio === "number" ? l.precio : 0;
+  var r = { precio: base, original: base, descuento: 0, hasta: "", campana: "" };
+  if (!base) return r;
+  if (l.precioOferta > 0 && l.precioOferta < base && vigente(l.ofertaHasta)) {
+    r.precio = l.precioOferta; r.hasta = l.ofertaHasta || "";
+  }
+  (campanas || []).forEach(function (c) {
+    if (!c || c.activa === false || !(c.porcentaje > 0) || !vigente(c.hasta, c.desde)) return;
+    if (c.categoria && c.categoria !== l.categoria) return;
+    if (c.subcategoria && c.subcategoria !== l.subcategoria) return;
+    var p = Math.round(base * (100 - c.porcentaje) / 100 / 100) * 100;   // redondeado a $100
+    if (p < r.precio) { r.precio = p; r.hasta = c.hasta || ""; r.campana = c.nombre || ""; }
+  });
+  if (r.precio < base) r.descuento = Math.round((1 - r.precio / base) * 100);
+  return r;
+}

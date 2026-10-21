@@ -218,3 +218,27 @@ label.boton { cursor: pointer; }
 }
 .interior--agregar span { font-size: .75rem; font-weight: 600; }
 .interior--cargando { display: grid; place-items: center; font-size: .75rem; color: var(--suave); }
+
+/* Ofertas en el panel */
+.campos-oferta .campo span { color: #b3261e; }
+.txt-oferta { color: #c0262d; font-weight: 600; }
+.txt-vencida { color: var(--suave); text-decoration: line-through; }
+.form-anuncio, .form-campana { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.form-campana > .boton { align-self: flex-start; }
+.campo--boton { justify-content: flex-end; }
+.tres-campos { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+@media (max-width: 520px) { .tres-campos { grid-template-columns: 1fr; } }
+.anuncio-vista__etiqueta { font-size: .8rem; color: var(--suave); }
+.anuncio-vista__barra { margin-top: 4px; background: linear-gradient(90deg, #c0262d, #e0262f); color: #fff; text-align: center; padding: 10px 14px; border-radius: 10px; font-weight: 600; font-size: .92rem; }
+.lista-campanas { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--borde); padding-top: 14px; margin-bottom: 8px; }
+.campana { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--borde); border-radius: 12px; }
+.campana__info { display: flex; flex-direction: column; gap: 2px; }
+.campana__info span { font-size: .85rem; color: var(--suave); }
+.campana__acciones { display: flex; gap: 4px; }
+.estado-campana { font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
+.estado-campana--activa { background: #dcefe3; color: #17643a; }
+.estado-campana--programada { background: #e3e8f4; color: #2f4a80; }
+.estado-campana--pausada { background: #fdf0d5; color: #8a5a00; }
+.estado-campana--terminada { background: #eee9e3; color: var(--suave); }
+#lista-ofertas-libros .ranking li { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+#lista-ofertas-libros .ranking li strong { float: none; display: flex; gap: 2px; }

@@ -1,6 +1,6 @@
 import { db, configurado } from "./firebase.js";
 import { collection, doc, query, where, getDoc, getDocs, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { formatoPrecio, sinTildes, escapar, enlaceWhatsApp, codigoPedido, portadaVaciaHTML, enlaceLibro, buscarPorSlug } from "./util.js";
+import { formatoPrecio, sinTildes, escapar, enlaceWhatsApp, codigoPedido, portadaVaciaHTML, enlaceLibro, buscarPorSlug, precioEfectivo, vigente, fechaCorta } from "./util.js";
 
 var T = window.TIENDA;
 var libros = [];          // [{id, nombre, autor, categoria, precio, stock, descripcion, imagen}]
@@ -9,6 +9,21 @@ var categoriaActiva = "Todas";
 var subcategoriaActiva = "";
 var subsPorCategoria = {};  // { categoría: [subcategorías en orden] }
 var vendidos = {};          // { idLibro: unidades vendidas (90 días) }
+var campanas = [];          // campañas de descuento (por categoría)
+var OFERTAS = "__ofertas";  // categoría especial para ver solo las ofertas
+function precioDe(l) { return precioEfectivo(l, campanas); }
+function enOferta(l) { return precioDe(l).descuento > 0; }
+function precioHTML(l, clase) {
+  var p = precioDe(l);
+  if (!p.descuento) return '<span class="' + clase + '">' + formatoPrecio(p.precio) + "</span>";
+  return '<span class="' + clase + ' precio--oferta">' +
+    '<span class="precio__antes">' + formatoPrecio(p.original) + "</span>" +
+    '<span class="precio__ahora">' + formatoPrecio(p.precio) + "</span></span>";
+}
+function etiquetaOfertaHTML(l) {
+  var p = precioDe(l);
+  return p.descuento ? '<span class="etiqueta-oferta">-' + p.descuento + "%</span>" : "";
+}
 var ajustesSecciones = {};  // qué carruseles mostrar (lo decide el panel)
 var carrito = cargarCarrito(); // { idLibro: cantidad }
 
@@ -47,7 +62,7 @@ function cantidadTotal() {
   return itemsCarrito().reduce(function (s, it) { return s + it.cantidad; }, 0);
 }
 function totalCarrito() {
-  return itemsCarrito().reduce(function (s, it) { return s + it.cantidad * (it.libro.precio || 0); }, 0);
+  return itemsCarrito().reduce(function (s, it) { return s + it.cantidad * precioDe(it.libro).precio; }, 0);
 }
 
 function cambiarCantidad(id, delta) {
@@ -143,14 +158,16 @@ function pintarCategorias() {
     if (libros.some(function (l) { return l.categoria === c; })) cats.push(c);
   });
   libros.forEach(function (l) { if (l.categoria && cats.indexOf(l.categoria) === -1) cats.push(l.categoria); });
+  if (libros.some(enOferta)) cats.splice(1, 0, OFERTAS);
+  else if (categoriaActiva === OFERTAS) categoriaActiva = "Todas";
   $categorias.innerHTML = "";
   if (cats.length <= 1) return;
   cats.forEach(function (c) {
     var b = document.createElement("button");
     b.type = "button";
-    b.className = "chip" + (c === categoriaActiva ? " chip--activa" : "");
+    b.className = "chip" + (c === categoriaActiva ? " chip--activa" : "") + (c === OFERTAS ? " chip--oferta" : "");
     b.setAttribute("aria-pressed", c === categoriaActiva);
-    b.textContent = c;
+    b.textContent = c === OFERTAS ? "🏷️ Ofertas" : c;
     b.addEventListener("click", function () { elegirCategoria(c); });
     $categorias.appendChild(b);
   });
@@ -202,7 +219,7 @@ function accionHTML(l, grande) {
     // En la ficha: se puede escribir la cantidad.
     if (enPedido) return '<div class="ficha-cantidad">' +
       selectorHTML(l.id, enPedido, l.stock, { menos: 'data-menos="' + l.id + '"', mas: 'data-mas="' + l.id + '"', input: 'data-cantidad="' + l.id + '"' }) +
-      '<p class="ficha-cantidad__nota">En tu pedido · ' + formatoPrecio(enPedido * (l.precio || 0)) + "</p></div>";
+      '<p class="ficha-cantidad__nota">En tu pedido · ' + formatoPrecio(enPedido * precioDe(l).precio) + "</p></div>";
     return '<div class="ficha-cantidad ficha-cantidad--nueva">' +
       selectorHTML(l.id, 1, l.stock, { menos: 'data-sel="-1"', mas: 'data-sel="1"', input: 'id="cantidad-ficha"' }) +
       '<button type="button" class="boton boton--acento" data-agregar-n="' + l.id + '">Agregar al pedido</button></div>';
@@ -231,8 +248,14 @@ function pintarDetalle() {
       (l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria + (l.subcategoria ? " › " + l.subcategoria : "")) + "</p>" : "") +
       '<h2 class="detalle__titulo">' + escapar(l.nombre) + "</h2>" +
       (l.autor ? '<p class="tarjeta__autor">' + escapar(l.autor) + "</p>" : "") +
-      '<p class="detalle__precio">' + formatoPrecio(l.precio) +
+      '<p class="detalle__precio">' + precioHTML(l, "detalle__monto") + etiquetaOfertaHTML(l) +
         (!agotado && l.stock <= 3 ? ' <span class="tarjeta__stock">Quedan ' + l.stock + "</span>" : "") + "</p>" +
+      (function () {
+        var p = precioDe(l);
+        if (!p.descuento) return "";
+        return '<p class="detalle__oferta">Ahorras ' + formatoPrecio(p.original - p.precio) +
+          (p.campana ? " · " + escapar(p.campana) : "") + (p.hasta ? " · Hasta el " + fechaCorta(p.hasta) : "") + "</p>";
+      })() +
       (l.descripcion ? '<p class="detalle__descripcion">' + escapar(l.descripcionCompleta || l.descripcion) + "</p>" : "") +
       datosHTML(l, "detalle__datos--info") +
       '<div class="detalle__accion">' + accionHTML(l, true) +
@@ -373,7 +396,7 @@ $detalle.addEventListener("close", function () {
 
 function compartirLibro(l) {
   var url = enlaceLibro(BASE_TIENDA, l);
-  var texto = l.nombre + (l.autor ? " — " + l.autor : "") + (l.precio ? " · " + formatoPrecio(l.precio) : "");
+  var texto = l.nombre + (l.autor ? " — " + l.autor : "") + (l.precio ? " · " + formatoPrecio(precioDe(l).precio) + (enOferta(l) ? " (oferta -" + precioDe(l).descuento + "%)" : "") : "");
   if (navigator.share) {
     navigator.share({ title: l.nombre, text: texto, url: url }).catch(function () {});
     return;
@@ -433,7 +456,7 @@ $detalle.addEventListener("click", function (e) {
 function pintarLibros() {
   var q = sinTildes($buscar.value.trim());
   var visibles = libros.filter(function (l) {
-    var okCat = (categoriaActiva === "Todas" || l.categoria === categoriaActiva) &&
+    var okCat = (categoriaActiva === "Todas" || l.categoria === categoriaActiva || (categoriaActiva === OFERTAS && enOferta(l))) &&
       (!subcategoriaActiva || l.subcategoria === subcategoriaActiva);
     var texto = sinTildes([l.nombre, l.autor, l.categoria, l.subcategoria, l.editorial, l.isbn, String(l.isbn).replace(/[^0-9Xx]/g, "")].join(" "));
     var qISBN = /^[\d\s-]{6,}x?$/.test(q) ? q.replace(/[\s-]/g, "") : "";
@@ -452,6 +475,7 @@ function pintarLibros() {
   $("titulo-grilla").hidden = !libros.length;
   $("titulo-grilla-texto").textContent = q ? "Resultados de la búsqueda"
     : inicio ? "Todos los libros"
+    : categoriaActiva === OFERTAS ? "Ofertas"
     : categoriaActiva + (subcategoriaActiva ? " › " + subcategoriaActiva : "");
   $("titulo-grilla-cuenta").textContent = visibles.length + " libro" + (visibles.length === 1 ? "" : "s");
 
@@ -485,14 +509,14 @@ function tarjetaHTML(l, compacta) {
   var agotado = l.stock <= 0;
   var stockTexto = (!agotado && l.stock <= 3) ? '<span class="tarjeta__stock">Quedan ' + l.stock + "</span>" : "";
   return '<article class="tarjeta' + (agotado ? " tarjeta--agotada" : "") + (compacta ? " tarjeta--compacta" : "") + '">' +
-    '<button type="button" class="tarjeta__foto" data-ver="' + l.id + '" aria-label="Ver detalles de ' + escapar(l.nombre) + '">' + fotoHTML(l, l.nombre) + (agotado ? '<span class="etiqueta">Agotado</span>' : "") + "</button>" +
+    '<button type="button" class="tarjeta__foto" data-ver="' + l.id + '" aria-label="Ver detalles de ' + escapar(l.nombre) + '">' + fotoHTML(l, l.nombre) + (agotado ? '<span class="etiqueta">Agotado</span>' : "") + etiquetaOfertaHTML(l) + "</button>" +
     '<div class="tarjeta__cuerpo">' +
       (!compacta && l.categoria ? '<p class="tarjeta__categoria">' + escapar(l.categoria) + "</p>" : "") +
       '<h3 class="tarjeta__titulo"><button type="button" class="enlace-titulo" data-ver="' + l.id + '">' + escapar(l.nombre) + "</button></h3>" +
       (l.autor ? '<p class="tarjeta__autor">' + escapar(l.autor) + "</p>" : "") +
       (!compacta && l.descripcion ? '<p class="tarjeta__descripcion">' + escapar(l.descripcion) + "</p>" +
         '<button type="button" class="ver-mas" data-ver="' + l.id + '">Ver más</button>' : "") +
-      '<div class="tarjeta__pie"><span class="tarjeta__precio">' + formatoPrecio(l.precio) + "</span>" + stockTexto + "</div>" +
+      '<div class="tarjeta__pie">' + precioHTML(l, "tarjeta__precio") + stockTexto + "</div>" +
       '<div class="tarjeta__accion" data-accion="' + l.id + '">' + accionHTML(l, false) + "</div>" +
     "</div></article>";
 }
@@ -508,6 +532,8 @@ function armarSecciones() {
   var s = [];
   var destacados = disponiblesPrimero(libros.filter(function (l) { return l.destacado; }));
   if (activa("destacados") && destacados.length) s.push({ titulo: "Destacados", libros: destacados });
+  var ofertas = libros.filter(enOferta).sort(function (a, b) { return precioDe(b).descuento - precioDe(a).descuento; });
+  if (activa("ofertas") && ofertas.length) s.push({ titulo: "🏷️ Ofertas", categoria: OFERTAS, libros: disponiblesPrimero(ofertas) });
   var masVendidos = libros.filter(function (l) { return vendidos[l.id]; })
     .sort(function (a, b) { return vendidos[b.id] - vendidos[a.id]; });
   if (activa("vendidos") && masVendidos.length >= 3) s.push({ titulo: "Más vendidos", libros: disponiblesPrimero(masVendidos) });
@@ -601,7 +627,7 @@ function pintarCarrito() {
       '<div class="item-pedido__foto">' + ((l.imagen || fotos[l.id]) ? '<img src="' + escapar(l.imagen || fotos[l.id]) + '" alt="">' : "") + "</div>" +
       '<div class="item-pedido__info"><strong>' + escapar(l.nombre) + "</strong>" +
         (l.autor ? "<span>" + escapar(l.autor) + "</span>" : "") +
-        "<span>" + formatoPrecio(l.precio) + " c/u</span></div>" +
+        "<span>" + formatoPrecio(precioDe(l).precio) + " c/u" + (enOferta(l) ? ' <em class="item-pedido__oferta">oferta</em>' : "") + "</span></div>" +
       selectorHTML(l.id, it.cantidad, l.stock, { menos: 'data-menos="' + l.id + '"', mas: 'data-mas="' + l.id + '"', input: 'data-cantidad="' + l.id + '"' })
         .replace("cantidad cantidad--editable", "cantidad cantidad--chica cantidad--editable") +
       "</li>";
@@ -665,7 +691,7 @@ $("form-pedido").addEventListener("submit", function (e) {
   var $btn = $("enviar-pedido"), $err = $("error-pedido");
   limpiarCarrito();
   var items = itemsCarrito().map(function (it) {
-    return { id: it.libro.id, nombre: it.libro.nombre, autor: it.libro.autor || "", precio: it.libro.precio || 0, cantidad: it.cantidad };
+    return { id: it.libro.id, nombre: it.libro.nombre, autor: it.libro.autor || "", precio: precioDe(it.libro).precio, cantidad: it.cantidad };
   });
   if (!items.length) { pintarCarrito(); return; }
   var cliente = {
@@ -723,7 +749,7 @@ function normalizar(x, id) {
     precio: typeof x.precio === "number" ? x.precio : null,
     stock: typeof x.stock === "number" ? x.stock : 0,
     descripcion: x.resumen !== undefined ? x.resumen : (x.descripcion || ""),
-    larga: !!x.larga, foto: x.foto || 0, destacado: !!x.destacado, interiores: x.interiores || 0, creado: typeof x.creado === "number" ? x.creado : (x.creado && x.creado.toMillis ? x.creado.toMillis() : 0), imagen: x.imagen || ""
+    larga: !!x.larga, foto: x.foto || 0, destacado: !!x.destacado, precioOferta: x.precioOferta || 0, ofertaHasta: x.ofertaHasta || "", interiores: x.interiores || 0, creado: typeof x.creado === "number" ? x.creado : (x.creado && x.creado.toMillis ? x.creado.toMillis() : 0), imagen: x.imagen || ""
   };
 }
 
@@ -734,7 +760,7 @@ function traerCatalogo() {
     if (s.exists()) {
       var d = s.data();
       var datos = { libros: (d.libros || []).map(function (x) { return normalizar(x); }), categorias: d.categorias || [], subcategorias: d.subcategorias || {},
-        vendidos: d.vendidos || {}, secciones: d.secciones || {} };
+        vendidos: d.vendidos || {}, secciones: d.secciones || {}, campanas: d.campanas || [], anuncio: d.anuncio || null };
       guardarCache(datos);
       return datos;
     }
@@ -761,6 +787,8 @@ if (!configurado) {
     ordenCategorias = datos.categorias || [];
     subsPorCategoria = datos.subcategorias || {};
     vendidos = datos.vendidos || {};
+    campanas = datos.campanas || [];
+    pintarAnuncio(datos.anuncio);
     ajustesSecciones = datos.secciones || {};
     limpiarCarrito();
     pintarContador();
@@ -782,4 +810,20 @@ function abrirDesdeEnlace() {
     try { history.replaceState(null, "", BASE_TIENDA); } catch (e) {}
     avisar("Ese libro ya no está disponible. Mira el resto del catálogo.");
   }
+}
+
+// ---------- Barra de anuncio (la escribe la tienda desde el panel) ----------
+function pintarAnuncio(a) {
+  var $a = $("anuncio");
+  var cerrado = false;
+  try { cerrado = sessionStorage.getItem("psb-anuncio-cerrado") === (a && a.texto); } catch (e) {}
+  if (!a || !a.activo || !a.texto || !vigente(a.hasta) || cerrado) { $a.hidden = true; return; }
+  $("anuncio-texto").textContent = a.texto;
+  $a.hidden = false;
+  $("anuncio-ver").hidden = !libros.some(enOferta);
+  $("anuncio-cerrar").onclick = function () {
+    $a.hidden = true;
+    try { sessionStorage.setItem("psb-anuncio-cerrado", a.texto); } catch (e) {}
+  };
+  $("anuncio-ver").onclick = function () { elegirCategoria(OFERTAS, true); };
 }

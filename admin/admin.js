@@ -4,13 +4,19 @@ import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, runTransaction,
   serverTimestamp, deleteField, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { formatoPrecio, aNumero, sinTildes, escapar, enlaceWhatsApp, codigoPedido, leerCSV, portadaVaciaHTML, enlaceLibro } from "../util.js";
+import { formatoPrecio, aNumero, sinTildes, escapar, enlaceWhatsApp, codigoPedido, leerCSV, portadaVaciaHTML, enlaceLibro, hoyISO, vigente, fechaCorta, precioEfectivo } from "../util.js";
 
 var auth = getAuth(app);
 var $ = function (id) { return document.getElementById(id); };
 
 var libros = [], categorias = [], pedidos = [];
-var ajustes = { destacados: true, vendidos: true, novedades: true, categorias: {} };
+var ajustes = { destacados: true, ofertas: true, vendidos: true, novedades: true, categorias: {} };
+var campanas = [];     // [{id, nombre, categoria, subcategoria, porcentaje, desde, hasta, activa}]
+var anuncio = { activo: false, texto: "", hasta: "" };
+// Guarda todo el documento de ajustes de la tienda (secciones, campañas y anuncio) de una vez.
+function guardarDocAjustes() {
+  return setDoc(doc(db, "tienda", "ajustes"), { secciones: ajustes, campanas: campanas, anuncio: anuncio });
+}
 var filtroPedidos = "pendiente";
 var libroEditando = null;   // id o null
 var fotoEditando = "";      // dataURL
@@ -134,8 +140,11 @@ function cargarPedidos() {
 }
 function cargarAjustes() {
   return getDoc(doc(db, "tienda", "ajustes")).then(function (s) {
-    var a = s.exists() ? (s.data().secciones || {}) : {};
-    ajustes = { destacados: a.destacados !== false, vendidos: a.vendidos !== false, novedades: a.novedades !== false, categorias: a.categorias || {} };
+    var datos = s.exists() ? s.data() : {};
+    var a = datos.secciones || {};
+    ajustes = { destacados: a.destacados !== false, ofertas: a.ofertas !== false, vendidos: a.vendidos !== false, novedades: a.novedades !== false, categorias: a.categorias || {} };
+    campanas = Array.isArray(datos.campanas) ? datos.campanas : [];
+    anuncio = datos.anuncio || { activo: false, texto: "", hasta: "" };
   });
 }
 function cargarTodo() {
@@ -178,12 +187,15 @@ function armarCatalogo() {
         paginas: l.paginas || 0, peso: l.peso || 0, dimensiones: l.dimensiones || "", cubierta: l.cubierta || "",
         precio: typeof l.precio === "number" ? l.precio : 0, stock: l.stock || 0,
         resumen: resumenDe(d), larga: d.length > LARGO_RESUMEN, foto: l.foto || 0,
-        destacado: !!l.destacado, interiores: l.interiores || 0, creado: msDe(l.creado) || l.creadoMs || 0
+        destacado: !!l.destacado, interiores: l.interiores || 0,
+        precioOferta: (l.precioOferta > 0 && vigente(l.ofertaHasta)) ? l.precioOferta : 0, ofertaHasta: l.ofertaHasta || "", creado: msDe(l.creado) || l.creadoMs || 0
       };
     }),
     categorias: categorias.map(function (c) { return c.nombre; }),
     vendidos: calcularVendidos(),
     secciones: ajustes,
+    campanas: campanas.filter(function (c) { return c.activa !== false && vigente(c.hasta); }),
+    anuncio: (anuncio.activo && anuncio.texto && vigente(anuncio.hasta)) ? anuncio : null,
     subcategorias: categorias.reduce(function (m, c) { if (subsDe(c).length) m[c.nombre] = subsDe(c); return m; }, {}),
     actualizado: serverTimestamp()
   };
@@ -210,7 +222,7 @@ function revisarCatalogo() {
     if (!s.exists()) return publicarCatalogo();
     // El ranking de "Más vendidos" cambia con el tiempo (ventana de 90 días): se actualiza al entrar.
     var d = s.data();
-    if (JSON.stringify(d.vendidos || {}) !== JSON.stringify(calcularVendidos()) || !d.secciones) return publicarCatalogo();
+    if (JSON.stringify(d.vendidos || {}) !== JSON.stringify(calcularVendidos()) || !d.secciones || !("campanas" in d)) return publicarCatalogo();
   });
 }
 
@@ -290,7 +302,7 @@ function migrarFotos() {
 }
 
 // ---------- Pestañas ----------
-var PESTANAS = ["resumen", "pedidos", "libros", "categorias", "inicio"];
+var PESTANAS = ["resumen", "pedidos", "libros", "categorias", "inicio", "ofertas"];
 function pestanaActual() {
   var h = location.hash.replace("#", "");
   return PESTANAS.indexOf(h) !== -1 ? h : "resumen";
@@ -316,6 +328,7 @@ function pintarTodo() {
   if (p === "libros") pintarLibros();
   if (p === "categorias") pintarCategorias();
   if (p === "inicio") pintarInicio();
+  if (p === "ofertas") pintarOfertas();
 }
 
 // ---------- Resumen ----------
@@ -560,7 +573,7 @@ function pintarLibros() {
       '<button type="button" class="fila-libro__info" data-editar="' + l.id + '">' +
         "<strong>" + escapar(l.nombre) + "</strong>" +
         "<span>" + escapar([l.autor, l.editorial, [l.categoria, l.subcategoria].filter(Boolean).join(" › ")].filter(Boolean).join(" · ")) + "</span>" +
-        "<span>" + formatoPrecio(l.precio) + (l.interiores ? " · 📖 " + l.interiores + " foto(s) interior" : "") + (l.destacado ? " · ⭐ Destacado" : "") + (l.activo === false ? ' · <em>Oculto</em>' : "") + "</span>" +
+        "<span>" + formatoPrecio(l.precio) + etiquetaOfertaPanel(l) + (l.interiores ? " · 📖 " + l.interiores + " foto(s) interior" : "") + (l.destacado ? " · ⭐ Destacado" : "") + (l.activo === false ? ' · <em>Oculto</em>' : "") + "</span>" +
       "</button>" +
       '<div class="fila-libro__stock">' +
         '<span class="fila-libro__etiqueta">Stock</span>' +
@@ -709,6 +722,8 @@ function abrirEditor(id) {
   libros.forEach(function (x) { if (x.editorial && eds.indexOf(x.editorial) === -1) eds.push(x.editorial); });
   $("lista-editoriales").innerHTML = eds.sort().map(function (n) { return '<option value="' + escapar(n) + '">'; }).join("");
   $form.precio.value = l && typeof l.precio === "number" ? l.precio : "";
+  $form.precioOferta.value = l && l.precioOferta ? l.precioOferta : "";
+  $form.ofertaHasta.value = l ? l.ofertaHasta || "" : "";
   $form.stock.value = l ? (l.stock || 0) : 0;
   $form.descripcion.value = l ? l.descripcion || "" : "";
   $form.activo.checked = l ? l.activo !== false : true;
@@ -813,6 +828,8 @@ $form.addEventListener("submit", function (e) {
     subcategoria: ($form.categoria.value && $form.subcategoria.value !== "__nueva") ? $form.subcategoria.value : "",
     precio: precio,
     stock: Math.max(0, parseInt($form.stock.value, 10) || 0),
+    precioOferta: aNumero($form.precioOferta.value) || 0,
+    ofertaHasta: $form.ofertaHasta.value || "",
     descripcion: $form.descripcion.value.trim(),
     activo: $form.activo.checked,
     destacado: $form.destacado.checked,
@@ -823,6 +840,8 @@ $form.addEventListener("submit", function (e) {
   if (cargandoInteriores) { $err.hidden = false; $err.textContent = "Espera a que terminen de cargar las fotos del interior."; return; }
   if (!datos.nombre) { $err.hidden = false; $err.textContent = "El nombre es obligatorio."; return; }
   if (precio === null) { $err.hidden = false; $err.textContent = "Escribe el precio, solo números. Ej: 85000"; return; }
+  if (datos.precioOferta && datos.precioOferta >= precio) { $err.hidden = false; $err.textContent = "El precio de oferta debe ser menor que el precio normal."; return; }
+  if (!datos.precioOferta) datos.ofertaHasta = "";
   $err.hidden = true; $btn.disabled = true; $btn.textContent = "Guardando…";
   var ref = libroEditando ? doc(db, "libros", libroEditando) : doc(collection(db, "libros"));
   var id = ref.id, esNuevo = !libroEditando;
@@ -907,6 +926,8 @@ $("archivo-csv").addEventListener("change", function (e) {
       if (f.peso !== undefined) datos.peso = pesoEnGramos(f.peso);
       if (f.dimensiones !== undefined) datos.dimensiones = limpiarDimensiones(f.dimensiones);
       if (f.cubierta !== undefined) datos.cubierta = String(f.cubierta).trim().slice(0, 40);
+      if (f["precio oferta"] !== undefined) datos.precioOferta = (aNumero(f["precio oferta"]) || 0) < datos.precio ? (aNumero(f["precio oferta"]) || 0) : 0;
+      if (f["oferta hasta"] !== undefined) datos.ofertaHasta = fechaDeCSV(f["oferta hasta"]);
       if (f.isbn !== undefined) {
         if (/e\+/i.test(f.isbn)) isbnDanados.push(f.nombre);
         else datos.isbn = limpiarISBN(f.isbn);
@@ -1117,7 +1138,8 @@ $("lista-categorias").addEventListener("click", function (e) {
         if (ajustes.categorias[c.nombre] !== undefined) {
           ajustes.categorias[nuevo] = ajustes.categorias[c.nombre];
           delete ajustes.categorias[c.nombre];
-          setDoc(doc(db, "tienda", "ajustes"), { secciones: ajustes }).catch(function () {});
+          campanas.forEach(function (cp) { if (cp.categoria === c.nombre) cp.categoria = nuevo; });
+          guardarDocAjustes().catch(function () {});
         }
         return cargarCategorias();
       })
@@ -1160,6 +1182,10 @@ function pintarInicio() {
   var nNov = visibles.filter(function (l) { return l.creado || l.creadoMs; }).length;
   $("interruptores-especiales").innerHTML =
     interruptorHTML("destacados", "⭐ Destacados", nDest ? nDest + " libro(s) marcados como destacados" : "Aún no hay libros marcados. Márcalos al editar cada libro.", ajustes.destacados) +
+    interruptorHTML("ofertas", "🏷️ Ofertas", (function () {
+      var n = visibles.filter(function (l) { return precioEfectivo(l, campanas).descuento > 0; }).length;
+      return n ? n + " libro(s) en oferta hoy" : "Aparece cuando haya libros en oferta (precio de oferta o campaña activa).";
+    })(), ajustes.ofertas) +
     interruptorHTML("vendidos", "🔥 Más vendidos", nVend >= 3 ? nVend + " libro(s) con ventas en los últimos " + DIAS_VENDIDOS + " días"
       : "Aparece cuando haya al menos 3 libros vendidos (pedidos pagados o entregados, últimos " + DIAS_VENDIDOS + " días). Hoy: " + nVend + ".", ajustes.vendidos) +
     interruptorHTML("novedades", "🆕 Novedades", nNov >= 4 ? "Los últimos libros que cargaste" : "Aparece cuando haya al menos 4 libros creados con esta versión del panel. Hoy: " + nNov + ".", ajustes.novedades);
@@ -1169,7 +1195,7 @@ function pintarInicio() {
   }).join("") : '<p class="estado">Todavía no hay categorías.</p>';
 }
 function guardarAjustes() {
-  return setDoc(doc(db, "tienda", "ajustes"), { secciones: ajustes }).then(publicarCatalogo);
+  return guardarDocAjustes().then(publicarCatalogo);
 }
 document.addEventListener("change", function (e) {
   var i = e.target.closest("[data-ajuste]");
@@ -1190,4 +1216,141 @@ $("copiar-enlace").addEventListener("click", function () {
   var listo = function () { avisar("Enlace copiado: pégalo en WhatsApp"); };
   if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(url).then(listo, function () { window.prompt("Copia este enlace:", url); });
   else window.prompt("Copia este enlace:", url);
+});
+
+
+// ---------- Ofertas y descuentos ----------
+// Acepta "2026-12-24", "24/12/2026" o "24-12-2026".
+function fechaDeCSV(v) {
+  v = String(v || "").trim();
+  var m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return m[1] + "-" + m[2].padStart(2, "0") + "-" + m[3].padStart(2, "0");
+  m = v.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (m) return m[3] + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0");
+  return "";
+}
+function etiquetaOfertaPanel(l) {
+  if (!(l.precioOferta > 0)) {
+    var pc = precioEfectivo(l, campanas);
+    return pc.descuento ? ' · <b class="txt-oferta">🏷️ -' + pc.descuento + "% (campaña)</b>" : "";
+  }
+  if (!vigente(l.ofertaHasta)) return ' · <span class="txt-vencida">oferta vencida</span>';
+  return ' · <b class="txt-oferta">🏷️ ' + formatoPrecio(precioEfectivo(l, campanas).precio) + (l.ofertaHasta ? " hasta " + fechaCorta(l.ofertaHasta) : "") + "</b>";
+}
+function estadoCampana(c) {
+  var hoy = hoyISO();
+  if (c.activa === false) return ["Pausada", "pausada"];
+  if (c.hasta && hoy > c.hasta) return ["Terminada", "terminada"];
+  if (c.desde && hoy < c.desde) return ["Programada", "programada"];
+  return ["Activa", "activa"];
+}
+function opcionesCampana() {
+  var $c = $("campana-categoria"), actual = $c.value;
+  $c.innerHTML = '<option value="">Todas las categorías</option>' + categorias.map(function (c) {
+    return "<option" + (c.nombre === actual ? " selected" : "") + ">" + escapar(c.nombre) + "</option>";
+  }).join("");
+  opcionesCampanaSub();
+}
+function opcionesCampanaSub() {
+  var cat = categoriaPorNombre($("campana-categoria").value);
+  var subs = cat ? subsDe(cat) : [];
+  $("campana-subcategoria").disabled = !subs.length;
+  $("campana-subcategoria").innerHTML = '<option value="">' + (subs.length ? "Toda la categoría" : "—") + "</option>" +
+    subs.map(function (s) { return "<option>" + escapar(s) + "</option>"; }).join("");
+}
+$("campana-categoria").addEventListener("change", opcionesCampanaSub);
+
+function pintarOfertas() {
+  // Anuncio
+  var fa = $("form-anuncio");
+  fa.activo.checked = !!anuncio.activo; fa.texto.value = anuncio.texto || ""; fa.hasta.value = anuncio.hasta || "";
+  pintarVistaAnuncio();
+  // Campañas
+  opcionesCampana();
+  var fc = $("form-campana");
+  if (!fc.desde.value) fc.desde.value = hoyISO();
+  $("lista-campanas").innerHTML = campanas.length ? campanas.slice().sort(function (a, b) { return String(b.desde).localeCompare(a.desde); }).map(function (c) {
+    var est = estadoCampana(c);
+    var alcance = c.categoria ? c.categoria + (c.subcategoria ? " › " + c.subcategoria : "") : "Todas las categorías";
+    var n = libros.filter(function (l) { return l.activo !== false && (!c.categoria || l.categoria === c.categoria) && (!c.subcategoria || l.subcategoria === c.subcategoria); }).length;
+    return '<div class="campana">' +
+      '<div class="campana__info"><strong>' + escapar(c.nombre) + ' <span class="estado-campana estado-campana--' + est[1] + '">' + est[0] + "</span></strong>" +
+        "<span>-" + c.porcentaje + "% · " + escapar(alcance) + " (" + n + " libros) · " + fechaCorta(c.desde) + " al " + fechaCorta(c.hasta) + "</span></div>" +
+      '<div class="campana__acciones">' +
+        (est[1] !== "terminada" ? '<button type="button" class="boton boton--texto" data-pausar="' + c.id + '">' + (c.activa === false ? "Reanudar" : "Pausar") + "</button>" : "") +
+        '<button type="button" class="boton boton--texto texto-error" data-borrar-campana="' + c.id + '">Eliminar</button>' +
+      "</div></div>";
+  }).join("") : '<p class="estado">Todavía no hay campañas.</p>';
+  // Libros con oferta propia
+  var conOferta = libros.filter(function (l) { return l.precioOferta > 0; })
+    .sort(function (a, b) { return String(a.nombre).localeCompare(b.nombre, "es"); });
+  $("lista-ofertas-libros").innerHTML = conOferta.length ? '<ul class="ranking ranking--simple">' + conOferta.map(function (l) {
+    var v = vigente(l.ofertaHasta);
+    return "<li><span>" + escapar(l.nombre) + " — <s>" + formatoPrecio(l.precio) + "</s> " + formatoPrecio(l.precioOferta) +
+      (l.ofertaHasta ? " · hasta " + fechaCorta(l.ofertaHasta) : "") + (v ? "" : ' <span class="txt-vencida">(vencida)</span>') + "</span>" +
+      '<strong><button type="button" class="boton boton--texto" data-editar-oferta="' + l.id + '">Editar</button>' +
+      '<button type="button" class="boton boton--texto texto-error" data-quitar-oferta="' + l.id + '">Quitar oferta</button></strong></li>';
+  }).join("") + "</ul>" : '<p class="estado">Ningún libro tiene precio de oferta. Se pone al editar cada libro, en "Precio de oferta".</p>';
+}
+
+function pintarVistaAnuncio() {
+  var fa = $("form-anuncio");
+  var t = fa.texto.value.trim();
+  $("anuncio-vista").innerHTML = t ? '<span class="anuncio-vista__etiqueta">Vista previa:</span><div class="anuncio-vista__barra">' + escapar(t) + "</div>" : "";
+}
+$("form-anuncio").texto.addEventListener("input", pintarVistaAnuncio);
+$("form-anuncio").addEventListener("submit", function (e) {
+  e.preventDefault();
+  var fa = e.target, antes = JSON.stringify(anuncio);
+  anuncio = { activo: fa.activo.checked, texto: fa.texto.value.trim().slice(0, 120), hasta: fa.hasta.value || "" };
+  if (anuncio.activo && !anuncio.texto) { anuncio = JSON.parse(antes); avisar("Escribe el texto del anuncio", true); return; }
+  guardarDocAjustes().then(publicarCatalogo).then(function () { avisar(anuncio.activo ? "Anuncio publicado" : "Anuncio guardado (oculto)"); })
+    .catch(function (err) { anuncio = JSON.parse(antes); avisar(mensajeError(err), true); });
+});
+
+$("form-campana").addEventListener("submit", function (e) {
+  e.preventDefault();
+  var f = e.target, $err = $("error-campana");
+  var c = {
+    id: Date.now().toString(36), nombre: f.nombre.value.trim().slice(0, 40),
+    categoria: f.categoria.value, subcategoria: f.subcategoria.disabled ? "" : f.subcategoria.value,
+    porcentaje: Math.round(Number(f.porcentaje.value) || 0), desde: f.desde.value, hasta: f.hasta.value, activa: true
+  };
+  var problema = !c.nombre ? "Ponle un nombre a la campaña."
+    : !(c.porcentaje >= 1 && c.porcentaje <= 90) ? "El descuento debe estar entre 1% y 90%."
+    : !c.desde || !c.hasta ? "Elige las fechas de inicio y fin."
+    : c.hasta < c.desde ? "La fecha de fin debe ser después de la de inicio."
+    : c.hasta < hoyISO() ? "Esa fecha de fin ya pasó." : "";
+  $err.hidden = !problema; $err.textContent = problema;
+  if (problema) return;
+  campanas.push(c);
+  guardarDocAjustes().then(publicarCatalogo).then(function () {
+    f.reset(); f.desde.value = hoyISO(); pintarOfertas(); avisar("Campaña creada");
+  }).catch(function (err) { campanas.pop(); avisar(mensajeError(err), true); });
+});
+
+$("lista-campanas").addEventListener("click", function (e) {
+  var p = e.target.closest("[data-pausar]"), d = e.target.closest("[data-borrar-campana]");
+  if (!p && !d) return;
+  var id = (p || d).dataset[p ? "pausar" : "borrarCampana"];
+  var antes = JSON.stringify(campanas);
+  var c = campanas.find(function (x) { return x.id === id; });
+  if (!c) return;
+  if (d) { if (!confirm("¿Eliminar la campaña \"" + c.nombre + "\"?")) return; campanas = campanas.filter(function (x) { return x.id !== id; }); }
+  else c.activa = c.activa === false;
+  guardarDocAjustes().then(publicarCatalogo).then(function () { pintarOfertas(); avisar(d ? "Campaña eliminada" : (c.activa ? "Campaña reanudada" : "Campaña pausada")); })
+    .catch(function (err) { campanas = JSON.parse(antes); avisar(mensajeError(err), true); });
+});
+
+$("lista-ofertas-libros").addEventListener("click", function (e) {
+  var ed = e.target.closest("[data-editar-oferta]");
+  if (ed) { abrirEditor(ed.dataset.editarOferta); setTimeout(function () { $form.precioOferta.focus(); }, 50); return; }
+  var q = e.target.closest("[data-quitar-oferta]");
+  if (!q) return;
+  var l = libros.find(function (x) { return x.id === q.dataset.quitarOferta; });
+  if (!l) return;
+  updateDoc(doc(db, "libros", l.id), { precioOferta: 0, ofertaHasta: "", actualizado: serverTimestamp() }).then(function () {
+    l.precioOferta = 0; l.ofertaHasta = "";
+    pintarOfertas(); avisar("Oferta quitada"); publicarCatalogo();
+  }).catch(function (err) { avisar(mensajeError(err), true); });
 });

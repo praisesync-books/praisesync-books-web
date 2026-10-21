@@ -444,9 +444,35 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 /* La galería solo se desliza hacia los lados, nunca hacia arriba o abajo */
 .galeria__pista { overflow-y: hidden; touch-action: pan-x pan-y; }
 .galeria__slide { overflow: hidden; min-height: 0; }
-.galeria__slide img, .galeria__slide .foto-perezosa, .galeria__slide .sin-foto { display: block; max-height: 100%; }
+.galeria__slide img, .galeria__slide .foto-perezosa { display: block; max-height: 100%; }
+.galeria__slide .sin-foto { display: flex; max-height: 100%; }
 .galeria--ampliada .galeria__pista { overflow-y: hidden; }
 .galeria__slide { grid-template-rows: 100%; grid-template-columns: 100%; }
 .galeria__slide > * { width: 100%; height: 100%; }
 .galeria__slide > .galeria__cargando { width: auto; height: auto; }
 .galeria--ampliada .galeria__slide > img { width: auto; height: auto; }
+
+/* ---------- Ofertas ---------- */
+.precio--oferta { display: inline-flex; flex-direction: column; line-height: 1.1; }
+.precio__antes { font-size: .78em; font-weight: 500; color: var(--suave); text-decoration: line-through; }
+.precio__ahora { color: #c0262d; }
+.etiqueta-oferta {
+  position: absolute; top: 10px; right: 10px; background: #e0262f; color: #fff;
+  font: 800 .8rem "Inter", sans-serif; padding: 4px 9px; border-radius: 999px; box-shadow: 0 2px 6px rgba(0, 0, 0, .18);
+}
+.detalle__precio { align-items: center; }
+.detalle__precio .etiqueta-oferta { position: static; font-size: .85rem; }
+.detalle__monto.precio--oferta { flex-direction: row; align-items: baseline; gap: 10px; }
+.detalle__monto .precio__antes { font-size: .65em; }
+.detalle__oferta { margin: 6px 0 0; color: #c0262d; font-weight: 600; font-size: .9rem; }
+.item-pedido__oferta { font-style: normal; color: #c0262d; font-weight: 600; }
+.chip--oferta { border-color: #f3b4b7; color: #c0262d; }
+.chip--oferta.chip--activa { background: #e0262f; border-color: #e0262f; color: #fff; }
+.tarjeta--compacta .precio--oferta .precio__antes { font-size: .72em; }
+
+/* Barra de anuncio */
+.anuncio { background: linear-gradient(90deg, #c0262d, #e0262f); color: #fff; font-size: .92rem; font-weight: 600; }
+.anuncio__fila { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 40px; padding-top: 6px; padding-bottom: 6px; text-align: center; }
+.anuncio__ver { background: #fff; color: #c0262d; border: 0; border-radius: 999px; padding: 4px 12px; font: 700 .82rem "Inter", sans-serif; cursor: pointer; white-space: nowrap; }
+.anuncio__cerrar { background: none; border: 0; color: #fff; font-size: 1.3rem; line-height: 1; cursor: pointer; opacity: .85; padding: 0 4px; }
+@media (max-width: 520px) { .anuncio { font-size: .8rem; } .anuncio__fila { gap: 8px; } }
