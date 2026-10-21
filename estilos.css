@@ -564,3 +564,12 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
 .banners__flecha { opacity: .85; }
 .banners__flecha:hover { opacity: 1; }
 @media (max-width: 640px) { .banners--baja .banners__puntos { padding-right: 0; } }
+/* En el celular se muestra la parte derecha de la foto, donde suele ir el producto */
+@media (max-width: 640px) { .banner--sin-cel .banner__fondo { background-position: 72% center; } }
+@media (max-width: 640px) {
+  .banners--media .banner__contenido { gap: 5px; padding-bottom: 30px; }
+  .banners--media .banner__titulo { font-size: 1.15rem; padding: 6px 11px; }
+  .banners--media .banner__subtitulo { max-width: 88%; }
+  .banners--media .banner__subtitulo span { font-size: .8rem; line-height: 1.6; padding: 2px 7px; }
+  .banners--media .banner__boton { padding: 7px 16px; font-size: .84rem; margin-top: 2px; }
+}
