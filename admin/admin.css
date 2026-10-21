@@ -242,3 +242,16 @@ label.boton { cursor: pointer; }
 .estado-campana--terminada { background: #eee9e3; color: var(--suave); }
 #lista-ofertas-libros .ranking li { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 #lista-ofertas-libros .ranking li strong { float: none; display: flex; gap: 2px; }
+
+/* Respaldo */
+.ultimo-respaldo { margin: 0; font-weight: 600; color: #17643a; }
+.ultimo-respaldo--alerta { color: #8a5a00; }
+.respaldos { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.respaldo-tarjeta { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.respaldo-tarjeta h2 { margin: 0; font-size: 1.1rem; color: var(--marino); }
+.respaldo-tarjeta p { margin: 0; font-size: .9rem; color: var(--suave); line-height: 1.5; }
+.respaldo-tarjeta__icono { font-size: 2rem; line-height: 1; }
+.respaldo-tarjeta__dato { font-weight: 600; color: var(--texto) !important; }
+.respaldo-tarjeta .boton { margin-top: auto; }
+.recordatorio { background: #fdf0d5; color: #6b4600; border: 1px solid #f3d9a4; border-radius: 12px; padding: 12px 16px; font-weight: 500; }
+.recordatorio a { color: var(--acento); font-weight: 700; margin-left: 6px; }

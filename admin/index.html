@@ -51,6 +51,7 @@
         <a href="#categorias" data-pestana="categorias">Categorías</a>
         <a href="#inicio" data-pestana="inicio">Página principal</a>
         <a href="#ofertas" data-pestana="ofertas">Ofertas</a>
+        <a href="#respaldo" data-pestana="respaldo">Respaldo</a>
       </nav>
     </header>
 
@@ -60,6 +61,7 @@
       <section data-seccion="resumen" hidden>
         <div class="titulo-fila"><h1>Resumen</h1>
           <button class="boton boton--contorno" type="button" data-recargar>Actualizar</button></div>
+        <div class="recordatorio" id="recordatorio-respaldo" hidden></div>
         <div class="metricas" id="metricas"></div>
         <div class="dos-columnas">
           <div class="bloque">
@@ -113,6 +115,42 @@
         </form>
         <ul class="lista-categorias" id="lista-categorias"></ul>
         <p class="ayuda ayuda--izq">El orden de esta lista es el orden de los botones de categoría en la tienda. Las subcategorías aparecen en la tienda al tocar su categoría.</p>
+      </section>
+
+      <!-- RESPALDO -->
+      <section data-seccion="respaldo" hidden>
+        <div class="titulo-fila"><h1>Respaldo</h1></div>
+        <p class="ayuda ayuda--izq">Descarga una copia de la tienda y guárdala en tu computador, en Google Drive o en un correo. Te recomendamos hacerlo una vez al mes, o antes de hacer cambios grandes.</p>
+        <p class="ultimo-respaldo" id="ultimo-respaldo"></p>
+        <div class="respaldos">
+          <div class="respaldo-tarjeta">
+            <span class="respaldo-tarjeta__icono" aria-hidden="true">📚</span>
+            <h2>Libros</h2>
+            <p>Todo el catálogo en un archivo para Excel. Tiene las mismas columnas de la plantilla, así que <b>se puede volver a importar</b> en "Libros → Importar CSV".</p>
+            <p class="respaldo-tarjeta__dato" id="dato-libros"></p>
+            <button class="boton boton--acento" type="button" data-respaldo="libros">Descargar libros</button>
+          </div>
+          <div class="respaldo-tarjeta">
+            <span class="respaldo-tarjeta__icono" aria-hidden="true">🧾</span>
+            <h2>Pedidos</h2>
+            <p>Todos los pedidos con fecha, cliente, teléfono, libros, estado y total, para llevar tus cuentas en Excel.</p>
+            <label class="campo"><span>Cuáles</span>
+              <select id="rango-pedidos">
+                <option value="todos">Todos</option>
+                <option value="anio">Este año</option>
+                <option value="mes">Este mes</option>
+                <option value="ventas">Solo ventas (pagados y entregados)</option>
+              </select></label>
+            <button class="boton boton--acento" type="button" data-respaldo="pedidos">Descargar pedidos</button>
+          </div>
+          <div class="respaldo-tarjeta">
+            <span class="respaldo-tarjeta__icono" aria-hidden="true">💾</span>
+            <h2>Respaldo completo</h2>
+            <p>Un solo archivo con todo: libros, categorías, ofertas, campañas, ajustes de la página principal y pedidos.</p>
+            <label class="interruptor"><input type="checkbox" id="incluir-fotos"> <span>Incluir las fotos <small id="peso-fotos">(el archivo queda más pesado)</small></span></label>
+            <button class="boton boton--acento" type="button" data-respaldo="completo">Descargar respaldo completo</button>
+          </div>
+        </div>
       </section>
 
       <!-- OFERTAS -->

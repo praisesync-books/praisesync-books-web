@@ -57,7 +57,7 @@ export function leerCSV(texto) {
     .filter(function (f) { return f.some(function (v) { return v.trim() !== ""; }); })
     .map(function (f) {
       var o = {};
-      encabezados.forEach(function (h, idx) { o[h] = (f[idx] || "").trim(); });
+      encabezados.forEach(function (h, idx) { o[h] = (f[idx] || "").trim().replace(/^="(.*)"$/, "$1"); });
       return o;
     });
 }

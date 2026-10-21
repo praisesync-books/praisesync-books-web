@@ -13,9 +13,10 @@ var libros = [], categorias = [], pedidos = [];
 var ajustes = { destacados: true, ofertas: true, vendidos: true, novedades: true, categorias: {} };
 var campanas = [];     // [{id, nombre, categoria, subcategoria, porcentaje, desde, hasta, activa}]
 var anuncio = { activo: false, texto: "", hasta: "" };
+var ultimoRespaldo = "";   // fecha ISO del último respaldo descargado
 // Guarda todo el documento de ajustes de la tienda (secciones, campañas y anuncio) de una vez.
 function guardarDocAjustes() {
-  return setDoc(doc(db, "tienda", "ajustes"), { secciones: ajustes, campanas: campanas, anuncio: anuncio });
+  return setDoc(doc(db, "tienda", "ajustes"), { secciones: ajustes, campanas: campanas, anuncio: anuncio, ultimoRespaldo: ultimoRespaldo });
 }
 var filtroPedidos = "pendiente";
 var libroEditando = null;   // id o null
@@ -145,6 +146,7 @@ function cargarAjustes() {
     ajustes = { destacados: a.destacados !== false, ofertas: a.ofertas !== false, vendidos: a.vendidos !== false, novedades: a.novedades !== false, categorias: a.categorias || {} };
     campanas = Array.isArray(datos.campanas) ? datos.campanas : [];
     anuncio = datos.anuncio || { activo: false, texto: "", hasta: "" };
+    ultimoRespaldo = datos.ultimoRespaldo || "";
   });
 }
 function cargarTodo() {
@@ -302,7 +304,7 @@ function migrarFotos() {
 }
 
 // ---------- Pestañas ----------
-var PESTANAS = ["resumen", "pedidos", "libros", "categorias", "inicio", "ofertas"];
+var PESTANAS = ["resumen", "pedidos", "libros", "categorias", "inicio", "ofertas", "respaldo"];
 function pestanaActual() {
   var h = location.hash.replace("#", "");
   return PESTANAS.indexOf(h) !== -1 ? h : "resumen";
@@ -329,6 +331,7 @@ function pintarTodo() {
   if (p === "categorias") pintarCategorias();
   if (p === "inicio") pintarInicio();
   if (p === "ofertas") pintarOfertas();
+  if (p === "respaldo") pintarRespaldo();
 }
 
 // ---------- Resumen ----------
@@ -336,6 +339,7 @@ function esVenta(p) { return p.estado === "pagado" || p.estado === "entregado"; 
 function fechaVenta(p) { return fecha(p.pagadoEn) || fecha(p.creado) || new Date(0); }
 
 function pintarResumen() {
+  pintarRecordatorioRespaldo();
   var ahora = new Date();
   var inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
   var inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
@@ -928,6 +932,9 @@ $("archivo-csv").addEventListener("change", function (e) {
       if (f.cubierta !== undefined) datos.cubierta = String(f.cubierta).trim().slice(0, 40);
       if (f["precio oferta"] !== undefined) datos.precioOferta = (aNumero(f["precio oferta"]) || 0) < datos.precio ? (aNumero(f["precio oferta"]) || 0) : 0;
       if (f["oferta hasta"] !== undefined) datos.ofertaHasta = fechaDeCSV(f["oferta hasta"]);
+      // Columnas que trae el respaldo de libros
+      if (f.visible !== undefined && f.visible !== "") datos.activo = !/^no$/i.test(f.visible.trim());
+      if (f.destacado !== undefined && f.destacado !== "") datos.destacado = /^s/i.test(f.destacado.trim());
       if (f.isbn !== undefined) {
         if (/e\+/i.test(f.isbn)) isbnDanados.push(f.nombre);
         else datos.isbn = limpiarISBN(f.isbn);
@@ -1353,4 +1360,151 @@ $("lista-ofertas-libros").addEventListener("click", function (e) {
     l.precioOferta = 0; l.ofertaHasta = "";
     pintarOfertas(); avisar("Oferta quitada"); publicarCatalogo();
   }).catch(function (err) { avisar(mensajeError(err), true); });
+});
+
+
+// ---------- Respaldo ----------
+var DIAS_RECORDAR_RESPALDO = 30;
+function diasDesde(iso) { return iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 864e5) : null; }
+function textoUltimoRespaldo() {
+  var d = diasDesde(ultimoRespaldo);
+  if (d === null) return "Todavía no has descargado ningún respaldo.";
+  var f = new Date(ultimoRespaldo).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
+  return "Último respaldo: " + f + (d === 0 ? " (hoy)" : d === 1 ? " (ayer)" : " (hace " + d + " días)") + ".";
+}
+function pintarRecordatorioRespaldo() {
+  var d = diasDesde(ultimoRespaldo), $r = $("recordatorio-respaldo");
+  var mostrar = libros.length > 0 && (d === null || d >= DIAS_RECORDAR_RESPALDO);
+  $r.hidden = !mostrar;
+  if (mostrar) $r.innerHTML = "💾 " + (d === null ? "Aún no has descargado un respaldo de la tienda." : "Hace " + d + " días que no descargas un respaldo.") +
+    ' <a href="#respaldo">Hacer respaldo ahora →</a>';
+}
+function pintarRespaldo() {
+  $("ultimo-respaldo").textContent = textoUltimoRespaldo();
+  $("ultimo-respaldo").classList.toggle("ultimo-respaldo--alerta", diasDesde(ultimoRespaldo) === null || diasDesde(ultimoRespaldo) >= DIAS_RECORDAR_RESPALDO);
+  var conFoto = libros.filter(function (l) { return l.foto; }).length;
+  var nInt = libros.reduce(function (s, l) { return s + (l.interiores || 0); }, 0);
+  $("dato-libros").textContent = libros.length + " libro" + (libros.length === 1 ? "" : "s") + " en el catálogo";
+  var mb = Math.max(1, Math.round((conFoto * 0.2 + nInt * 0.33) * 1.35));
+  $("peso-fotos").textContent = (conFoto + nInt) ? "(" + (conFoto + nInt) + " fotos, unos " + mb + " MB)" : "(no hay fotos)";
+}
+
+function descargar(nombre, contenido, tipo) {
+  var blob = new Blob([contenido], { type: tipo });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+}
+// CSV para Excel en español: separado por punto y coma, con BOM para que se vean bien las tildes.
+function celda(v) {
+  if (v === null || v === undefined) return "";
+  var t = String(v);
+  return /[";\n\r,]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+}
+function texto(v) { return v ? '="' + String(v).replace(/"/g, "") + '"' : ""; }   // que Excel no lo convierta en número
+function aCSV(filas) { return "\uFEFF" + filas.map(function (f) { return f.map(celda).join(";"); }).join("\r\n"); }
+function fechaArchivo() { return hoyISO(); }
+function aISO(v) {
+  if (v && typeof v.toDate === "function") return v.toDate().toISOString();
+  if (Array.isArray(v)) return v.map(aISO);
+  if (v && typeof v === "object") { var o = {}; Object.keys(v).forEach(function (k) { o[k] = aISO(v[k]); }); return o; }
+  return v;
+}
+
+function csvLibros() {
+  var filas = [["Nombre", "Autor", "Editorial", "ISBN", "Categoría", "Subcategoría", "Precio", "Precio oferta", "Oferta hasta",
+    "Stock", "Páginas", "Peso", "Dimensiones", "Cubierta", "Descripción", "Visible", "Destacado"]];
+  libros.slice().sort(function (a, b) { return String(a.nombre).localeCompare(b.nombre, "es"); }).forEach(function (l) {
+    filas.push([l.nombre, l.autor, l.editorial, texto(l.isbn), l.categoria, l.subcategoria, l.precio || 0,
+      l.precioOferta || "", l.ofertaHasta || "", l.stock || 0, l.paginas || "", l.peso || "", l.dimensiones || "", l.cubierta || "",
+      l.descripcion || "", l.activo === false ? "No" : "Sí", l.destacado ? "Sí" : "No"]);
+  });
+  return aCSV(filas);
+}
+
+function todosLosPedidos() {
+  return getDocs(collection(db, "pedidos")).then(function (s) {
+    return s.docs.map(function (d) { var x = d.data(); x.id = d.id; return x; })
+      .sort(function (a, b) { return ((fecha(b.creado) || 0) - (fecha(a.creado) || 0)); });
+  });
+}
+function csvPedidos(lista) {
+  var filas = [["Pedido", "Fecha", "Estado", "Cliente", "Teléfono", "Notas", "Libros", "Unidades", "Total"]];
+  lista.forEach(function (p) {
+    var c = p.cliente || {}, f = fecha(p.creado);
+    var items = p.items || [];
+    filas.push([codigoPedido(p.id), f ? f.toLocaleString("es-CO") : "", (ESTADOS[p.estado] || {}).nombre || p.estado,
+      c.nombre || "", texto(c.telefono), c.notas || "",
+      items.map(function (it) { return (it.cantidad || 0) + " x " + it.nombre + " (" + formatoPrecio(it.precio) + ")"; }).join(" | "),
+      items.reduce(function (s, it) { return s + (it.cantidad || 0); }, 0), p.total || 0]);
+  });
+  return aCSV(filas);
+}
+function filtrarPedidos(lista, rango) {
+  var ahora = new Date();
+  return lista.filter(function (p) {
+    var f = fecha(p.creado) || new Date(0);
+    if (rango === "anio") return f.getFullYear() === ahora.getFullYear();
+    if (rango === "mes") return f.getFullYear() === ahora.getFullYear() && f.getMonth() === ahora.getMonth();
+    if (rango === "ventas") return p.estado === "pagado" || p.estado === "entregado";
+    return true;
+  });
+}
+function leerColeccion(nombre) {
+  return getDocs(collection(db, nombre)).then(function (s) {
+    var o = {}; s.docs.forEach(function (d) { o[d.id] = d.data().imagen || ""; }); return o;
+  });
+}
+function respaldoCompleto(conFotos) {
+  return Promise.all([todosLosPedidos(), conFotos ? leerColeccion("portadas") : null, conFotos ? leerColeccion("interiores") : null])
+    .then(function (r) {
+      var datos = {
+        tipo: "respaldo-praisesync-books-web", version: 1, fecha: new Date().toISOString(), tienda: (window.TIENDA || {}).nombre || "",
+        libros: aISO(libros), categorias: aISO(categorias),
+        ajustes: { secciones: ajustes, campanas: campanas, anuncio: anuncio },
+        pedidos: aISO(r[0])
+      };
+      if (conFotos) { datos.portadas = r[1]; datos.interiores = r[2]; }
+      return JSON.stringify(datos, null, conFotos ? 0 : 1);
+    });
+}
+function marcarRespaldo() {
+  ultimoRespaldo = new Date().toISOString();
+  guardarDocAjustes().catch(function () {});
+  pintarRespaldo();
+}
+
+$("vista-panel").addEventListener("click", function (e) {
+  var b = e.target.closest("[data-respaldo]");
+  if (!b) return;
+  var tipo = b.dataset.respaldo, textoBoton = b.textContent;
+  b.disabled = true; b.textContent = "Preparando…";
+  var trabajo;
+  if (tipo === "libros") {
+    trabajo = Promise.resolve().then(function () {
+      descargar("praisesync-libros-" + fechaArchivo() + ".csv", csvLibros(), "text/csv;charset=utf-8");
+      return libros.length + " libros descargados";
+    });
+  } else if (tipo === "pedidos") {
+    var rango = $("rango-pedidos").value;
+    trabajo = todosLosPedidos().then(function (lista) {
+      var f = filtrarPedidos(lista, rango);
+      descargar("praisesync-pedidos-" + rango + "-" + fechaArchivo() + ".csv", csvPedidos(f), "text/csv;charset=utf-8");
+      return f.length + " pedidos descargados";
+    });
+  } else {
+    var conFotos = $("incluir-fotos").checked;
+    trabajo = respaldoCompleto(conFotos).then(function (json) {
+      descargar("praisesync-respaldo" + (conFotos ? "-con-fotos" : "") + "-" + fechaArchivo() + ".json", json, "application/json");
+      marcarRespaldo();
+      return "Respaldo completo descargado";
+    });
+  }
+  trabajo.then(function (msg) {
+    if (tipo !== "completo") marcarRespaldo();
+    avisar(msg);
+  }).catch(function (err) { avisar(mensajeError(err), true); })
+    .finally(function () { b.disabled = false; b.textContent = textoBoton; });
 });
