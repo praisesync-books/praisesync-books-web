@@ -95,7 +95,8 @@
 
   <footer class="pie">
     <div class="contenedor">
-      <!-- Aquí irán las políticas de compra (entregas, envíos, formas de pago) cuando estén definidas. -->
+      <!-- Enlaces a Quiénes somos, Envíos, Formas de pago… (se escriben en el panel → Información). -->
+      <nav class="pie__enlaces" id="pie-enlaces" aria-label="Información de la tienda" hidden></nav>
       <p>© <span id="anio"></span> PraiseSync Books Web · Pedidos por WhatsApp</p>
     </div>
   </footer>
@@ -152,6 +153,16 @@
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
     </button>
     <div class="detalle__contenido" id="detalle-contenido"></div>
+  </dialog>
+
+  <!-- Páginas de información (Quiénes somos, Envíos…) -->
+  <dialog class="info" id="info" aria-labelledby="info-titulo">
+    <button class="icono-boton info__cerrar" type="button" data-cerrar aria-label="Cerrar">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <h2 class="info__titulo" id="info-titulo"></h2>
+    <div class="info__texto" id="info-texto"></div>
+    <nav class="info__otras" id="info-otras" aria-label="Otras páginas"></nav>
   </dialog>
 
   <!-- Botón flotante de WhatsApp -->

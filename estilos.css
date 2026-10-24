@@ -573,3 +573,32 @@ button.tarjeta__foto { display: block; width: 100%; border: 0; padding: 0; curso
   .banners--media .banner__subtitulo span { font-size: .8rem; line-height: 1.6; padding: 2px 7px; }
   .banners--media .banner__boton { padding: 7px 16px; font-size: .84rem; margin-top: 2px; }
 }
+
+/* Pie: enlaces a la información de la tienda */
+.pie__enlaces { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 22px; margin-bottom: 14px; }
+.pie__enlaces a { color: var(--marino); font-weight: 500; text-decoration: none; }
+.pie__enlaces a:hover { color: var(--acento); text-decoration: underline; }
+.pie .contenedor { text-align: center; }
+
+/* Ventana de información (Quiénes somos, Envíos…) */
+.info {
+  width: min(640px, calc(100% - 32px)); max-height: calc(100% - 32px); padding: 32px 32px 26px; border: 0; border-radius: 18px;
+  background: var(--superficie); color: var(--texto); overflow: auto;
+}
+.info::backdrop { background: rgba(10, 31, 92, .5); }
+.info__cerrar { position: absolute; top: 12px; right: 12px; }
+.info__titulo { margin: 0 40px 16px 0; font-family: "Montserrat", "Inter", system-ui, sans-serif; font-weight: 800; font-size: 1.6rem; line-height: 1.2; color: var(--marino); }
+.info__texto { line-height: 1.65; }
+.info__texto p { margin: 0 0 12px; }
+.info__texto h3 { margin: 20px 0 8px; font-family: "Montserrat", "Inter", system-ui, sans-serif; font-size: 1.05rem; color: var(--marino); }
+.info__texto ul { margin: 0 0 12px; padding-left: 22px; }
+.info__texto li { margin: 4px 0; }
+.info__texto li::marker { color: var(--acento); }
+.info__whatsapp { margin-top: 8px; width: 100%; }
+.info__otras { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--borde); font-size: .9rem; }
+.info__otras:empty { display: none; }
+.info__otras a { color: var(--acento); font-weight: 500; text-decoration: none; }
+.info__otras a:hover { text-decoration: underline; }
+@media (max-width: 640px) {
+  .info { width: 100%; max-width: 100%; height: 100%; max-height: 100%; border-radius: 0; padding: 24px 20px; }
+}

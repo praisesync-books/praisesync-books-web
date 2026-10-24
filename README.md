@@ -40,6 +40,7 @@ Firebase → **Authentication → Usuarios → Agregar usuario**, y agrega su co
   y la lista de libros con precio de oferta propio. El precio de oferta de cada libro se pone al editarlo.
   Las ofertas y campañas se activan y se quitan solas según sus fechas.
 - **Banners:** hasta 5 fotos grandes arriba de la tienda (con título, subtítulo y botón que lleva a un libro, una categoría, las ofertas o un enlace). Cambian solos cada 6 segundos y se pueden programar con fechas.
+- **Información:** las páginas del pie de la tienda (Quiénes somos, Envíos y entregas, Formas de pago, Cambios y devoluciones, Contacto). Cada una trae un borrador: completa lo que está entre [corchetes], activa "Mostrar en la tienda" y guarda. Cada página tiene su enlace, ej. `…/?info=envios`.
 - **Respaldo:** descarga los libros (Excel, se pueden volver a importar), los pedidos (Excel) o un respaldo completo (archivo .json, con fotos opcionales). El Resumen te recuerda si pasa un mes sin respaldo.
 - **Página principal:** activa u oculta cada carrusel (Destacados, Más vendidos, Novedades y uno por categoría). "Todos los libros" siempre aparece debajo.
 - **Categorías y subcategorías:** crea, renombra (actualiza todos sus libros), ordena con ↑ ↓ y elimina. Cada categoría puede tener subcategorías (ej. Biblias › Letra grande).

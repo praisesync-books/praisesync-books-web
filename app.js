@@ -1,6 +1,6 @@
 import { db, configurado } from "./firebase.js";
 import { collection, doc, query, where, getDoc, getDocs, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { formatoPrecio, sinTildes, escapar, enlaceWhatsApp, codigoPedido, portadaVaciaHTML, enlaceLibro, buscarPorSlug, precioEfectivo, vigente, fechaCorta } from "./util.js";
+import { formatoPrecio, sinTildes, escapar, enlaceWhatsApp, codigoPedido, portadaVaciaHTML, enlaceLibro, buscarPorSlug, precioEfectivo, vigente, fechaCorta, textoInfoHTML } from "./util.js";
 
 var T = window.TIENDA;
 var libros = [];          // [{id, nombre, autor, categoria, precio, stock, descripcion, imagen}]
@@ -760,7 +760,7 @@ function traerCatalogo() {
     if (s.exists()) {
       var d = s.data();
       var datos = { libros: (d.libros || []).map(function (x) { return normalizar(x); }), categorias: d.categorias || [], subcategorias: d.subcategorias || {},
-        vendidos: d.vendidos || {}, secciones: d.secciones || {}, campanas: d.campanas || [], anuncio: d.anuncio || null, banners: d.banners || [], bannerAltura: d.bannerAltura || "baja" };
+        vendidos: d.vendidos || {}, secciones: d.secciones || {}, campanas: d.campanas || [], anuncio: d.anuncio || null, banners: d.banners || [], bannerAltura: d.bannerAltura || "baja", paginas: d.paginas || [] };
       guardarCache(datos);
       return datos;
     }
@@ -792,6 +792,7 @@ function aplicarCatalogo(datos) {
   bannerAltura = datos.bannerAltura || "baja";
   pintarAnuncio(datos.anuncio);
   pintarBanners(datos.banners || []);
+  pintarPie(datos.paginas || []);
   seccionesPintadas = false;   // los carruseles se arman de nuevo con los datos nuevos
   limpiarCarrito();
   pintarContador();
@@ -974,3 +975,49 @@ function abrirDestinoBanner(b) {
     window.open(b.destino, "_blank", "noopener");
   }
 }
+
+
+// ---------- Páginas de información (Quiénes somos, Envíos…) ----------
+// Se escriben en el panel → Información. Cada una tiene su enlace: ?info=quienes, ?info=envios…
+var $info = $("info"), paginasInfo = [], infoAbierta = null;
+var infoPedida = new URLSearchParams(location.search).get("info");
+function pintarPie(lista) {
+  paginasInfo = Array.isArray(lista) ? lista.filter(function (p) { return p && p.id && p.titulo; }) : [];
+  var $n = $("pie-enlaces");
+  $n.hidden = !paginasInfo.length;
+  $n.innerHTML = paginasInfo.map(function (p) {
+    return '<a href="?info=' + encodeURIComponent(p.id) + '" data-info="' + escapar(p.id) + '">' + escapar(p.titulo) + "</a>";
+  }).join("");
+  if (infoAbierta && $info.open) { if (paginaInfo(infoAbierta)) abrirInfo(infoAbierta); else $info.close(); }
+  if (infoPedida && paginaInfo(infoPedida)) { var id = infoPedida; infoPedida = null; abrirInfo(id); }
+}
+function paginaInfo(id) { return paginasInfo.find(function (p) { return p.id === id; }); }
+function abrirInfo(id) {
+  var p = paginaInfo(id);
+  if (!p) return;
+  infoAbierta = id;
+  $("info-titulo").textContent = p.titulo;
+  $("info-texto").innerHTML = textoInfoHTML(p.texto) + (p.id === "contacto"
+    ? '<a class="boton boton--whatsapp info__whatsapp" href="' + enlaceWhatsApp(T.whatsapp, T.mensajeGeneral) + '" target="_blank" rel="noopener">Escríbenos por WhatsApp</a>' : "");
+  $("info-otras").innerHTML = paginasInfo.filter(function (x) { return x.id !== id; }).map(function (x) {
+    return '<a href="?info=' + encodeURIComponent(x.id) + '" data-info="' + escapar(x.id) + '">' + escapar(x.titulo) + "</a>";
+  }).join("");
+  $info.scrollTop = 0;
+  if (!$info.open) { if ($info.showModal) $info.showModal(); else $info.setAttribute("open", ""); }
+  try { history.replaceState(null, "", BASE_TIENDA + "?info=" + encodeURIComponent(id)); } catch (e) {}
+  document.title = p.titulo + " · " + TITULO_BASE;
+}
+document.addEventListener("click", function (e) {
+  var a = e.target.closest("a[data-info]");
+  if (!a || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  e.preventDefault();
+  abrirInfo(a.dataset.info);
+});
+$info.addEventListener("click", function (e) {
+  if (e.target.closest("[data-cerrar]") || e.target === $info) $info.close();
+});
+$info.addEventListener("close", function () {
+  infoAbierta = null;
+  try { history.replaceState(null, "", BASE_TIENDA); } catch (e) {}
+  document.title = TITULO_BASE;
+});

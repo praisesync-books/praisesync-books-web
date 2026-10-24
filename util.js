@@ -125,3 +125,24 @@ export function precioEfectivo(l, campanas) {
   if (r.precio < base) r.descuento = Math.round((1 - r.precio / base) * 100);
   return r;
 }
+
+// ---------- Páginas de información (Quiénes somos, Envíos…) ----------
+// Formato sencillo para escribir desde el panel:
+//   línea en blanco = nuevo párrafo · "- " al inicio = viñeta · **texto** = negrita · "## " = subtítulo
+export function textoInfoHTML(texto) {
+  var negrita = function (s) { return escapar(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"); };
+  var html = [], lista = [], parrafo = [];
+  function cerrarParrafo() { if (parrafo.length) { html.push("<p>" + parrafo.join("<br>") + "</p>"); parrafo = []; } }
+  function cerrarLista() { if (lista.length) { html.push("<ul>" + lista.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ul>"); lista = []; } }
+  String(texto || "").replace(/\r/g, "").split("\n").forEach(function (linea) {
+    var t = linea.trim();
+    if (!t) { cerrarParrafo(); cerrarLista(); return; }
+    var v = t.match(/^[-•*]\s+(.*)$/);
+    if (v) { cerrarParrafo(); lista.push(negrita(v[1])); return; }
+    var h = t.match(/^#{1,3}\s+(.*)$/);
+    if (h) { cerrarParrafo(); cerrarLista(); html.push("<h3>" + negrita(h[1]) + "</h3>"); return; }
+    cerrarLista(); parrafo.push(negrita(t));
+  });
+  cerrarParrafo(); cerrarLista();
+  return html.join("");
+}
