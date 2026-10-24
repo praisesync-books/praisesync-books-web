@@ -5,7 +5,7 @@ import {
   serverTimestamp, deleteField, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { formatoPrecio, aNumero, sinTildes, escapar, enlaceWhatsApp, codigoPedido, leerCSV, portadaVaciaHTML, enlaceLibro, hoyISO, vigente, fechaCorta, precioEfectivo, textoInfoHTML } from "../util.js";
-import { normalizarISBN, buscarLibroPorISBN, traerPortada } from "./isbn.js";
+import { normalizarISBN, buscarLibroPorISBN, traerPortada, hayBuscadorCLC } from "./isbn.js";
 
 var auth = getAuth(app);
 var $ = function (id) { return document.getElementById(id); };
@@ -781,11 +781,11 @@ function autocompletarEditor() {
   buscarLibroPorISBN(isbn).then(function (d) {
     if (turno !== buscandoISBN || editando !== libroEditando || !$modal.open) return;
     if (!d.encontrado) {
-      estadoISBN("No se encontró este ISBN en Google Books ni en Open Library. Llena los datos a mano" +
+      estadoISBN("No se encontró este ISBN en " + (hayBuscadorCLC() ? "CLC, Google Books" : "Google Books") + " ni en Open Library. Llena los datos a mano" +
         (fotoEditando ? "." : ", y para la portada puedes " + enlaceBuscarPortada(isbn) + "."), "mal");
       return;
     }
-    var campos = [["nombre", "nombre"], ["autor", "autor"], ["editorial", "editorial"], ["paginas", "páginas"], ["descripcion", "descripción"], ["dimensiones", "dimensiones"]];
+    var campos = [["nombre", "nombre"], ["autor", "autor"], ["editorial", "editorial"], ["paginas", "páginas"], ["cubierta", "cubierta"], ["descripcion", "descripción"], ["dimensiones", "dimensiones"]];
     var conDatos = campos.filter(function (c) { return d[c[0]] && String($form[c[0]].value).trim() && String($form[c[0]].value).trim() !== String(d[c[0]]); });
     var reemplazar = conDatos.length ? confirm("Ya hay datos escritos en: " + conDatos.map(function (c) { return c[1]; }).join(", ") +
       ".\n\n¿Reemplazarlos con lo encontrado?\n(Cancelar = solo llenar los campos vacíos)") : false;
@@ -804,6 +804,9 @@ function autocompletarEditor() {
       if (llenos.length || portada) partes.push("Encontrado en " + d.fuentes.join(" y ") + ". Se llenó: " + llenos.concat(portada ? ["portada"] : []).join(", ") + ".");
       else partes.push("Encontrado en " + d.fuentes.join(" y ") + ", pero los campos ya tenían esos datos.");
       if (faltan.length) partes.push("No trae: " + faltan.join(", ") + ".");
+      if (d.clc) partes.push("<br><b>En CLC:</b> " + (d.clc.precio ? formatoPrecio(d.clc.precio) + " al público · " : "") +
+        (d.clc.disponible ? (d.clc.unidades ? d.clc.unidades + " disponibles" : "disponible") : "agotado") +
+        (d.clc.url ? ' · <a href="' + escapar(d.clc.url) + '" target="_blank" rel="noopener">ver en CLC</a>' : "") + "<br>");
       partes.push("Revisa que todo esté bien y completa precio, stock y categoría.");
       return partes.join(" ");
     };
@@ -1032,6 +1035,7 @@ function buscarVarios(lista) {
       if (!f.paginas && d.paginas) f.paginas = String(d.paginas);
       if (!f.descripcion) f.descripcion = d.descripcion;
       if (!f.dimensiones && d.dimensiones) f.dimensiones = d.dimensiones;
+      if (!f.cubierta && d.cubierta) f.cubierta = d.cubierta;
       f._portadas = d.portadas;
     }).then(siguiente);
   }

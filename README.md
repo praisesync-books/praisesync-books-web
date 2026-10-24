@@ -58,6 +58,7 @@ Las fotos se agregan después, editando cada libro.
 - **Muchos libros:** usa `plantilla-solo-isbn.csv` (columnas **ISBN, Categoría, Precio, Stock**) e impórtala en **Libros → Importar CSV**. Los ISBN que no estén en la tienda se buscan en internet y se crean con sus datos y portada; los que ya existen solo actualizan precio, stock y categoría.
 - Acepta ISBN con guiones, de 10 dígitos o de 14 dígitos con un 0 adelante (como vienen en algunos inventarios).
 - Con libros en español a veces faltan la descripción o la portada: revisa cada libro y completa lo que falte.
+- **Desde CLC Colombia (recomendado):** activando el buscador de `buscador-clc/GUIA.md` (Cloudflare, gratis), Autocompletar busca primero en clccolombia.com: trae también cubierta, dimensiones y reseña completa, y muestra el precio al público y las unidades disponibles en CLC.
 
 ## Compartir libros
 

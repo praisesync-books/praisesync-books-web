@@ -1,6 +1,6 @@
 // ============================================================
 //  Autocompletar libros por ISBN
-//  Fuentes gratuitas: Google Books y Open Library (no necesitan clave).
+//  Fuentes: CLC Colombia (si el buscador está activado en config.js), Google Books y Open Library.
 //  Todo se consulta desde el navegador del panel.
 // ============================================================
 
@@ -98,23 +98,49 @@ function desdeOpenLibrary(isbn) {
     .catch(function () { return null; });
 }
 
-// Busca en las dos fuentes y junta lo mejor: Google primero, lo que falte lo completa Open Library.
+// CLC Colombia, a través del buscador en Cloudflare (ver buscador-clc/GUIA.md).
+export function hayBuscadorCLC() { return !!((window.TIENDA || {}).buscadorCLC); }
+function desdeCLC(isbn) {
+  var base = (window.TIENDA || {}).buscadorCLC;
+  if (!base) return Promise.resolve(null);
+  return traerJSON(String(base).replace(/\/+$/, "") + "/?isbn=" + isbn)
+    .then(function (d) {
+      if (!d || !d.encontrado) return null;
+      return {
+        fuente: "CLC", nombre: d.nombre || "", autor: d.autor || "", editorial: d.editorial || "", paginas: d.paginas || 0,
+        descripcion: d.descripcion || "", dimensiones: d.dimensiones || "", cubierta: d.cubierta || "",
+        portadas: d.portada ? [d.portada] : [],
+        clc: { precio: d.precio || 0, disponible: !!d.disponible, unidades: d.unidades, url: d.url || "" }
+      };
+    })
+    .catch(function () { return null; });
+}
+
+// Busca en todas las fuentes y junta lo mejor: CLC primero, luego Google Books y por último Open Library.
+var CAMPOS_ISBN = ["nombre", "autor", "editorial", "paginas", "descripcion", "dimensiones", "cubierta"];
 export function buscarLibroPorISBN(isbn) {
-  return Promise.all([desdeGoogle(isbn), desdeOpenLibrary(isbn)]).then(function (r) {
-    var g = r[0], o = r[1];
-    if (!g && (!o || o.vacio)) {
-      return { encontrado: false, portadas: o ? o.portadas : [] };
-    }
-    var a = g || {}, b = (o && !o.vacio) ? o : {};
-    var datos = { encontrado: true, fuentes: [] };
-    ["nombre", "autor", "editorial", "paginas", "descripcion", "dimensiones"].forEach(function (k) { datos[k] = a[k] || b[k] || (k === "paginas" ? 0 : ""); });
+  return desdeCLC(isbn).then(function (c) {
+    // Si CLC trajo todo lo importante, no hace falta preguntarle a nadie más.
+    var completo = c && c.nombre && c.autor && c.descripcion && c.portadas.length;
+    if (completo) return [c, null, null];
+    return Promise.all([desdeGoogle(isbn), desdeOpenLibrary(isbn)]).then(function (r) { return [c, r[0], r[1]]; });
+  }).then(function (r) {
+    var fuentes = [r[0], r[1], (r[2] && !r[2].vacio) ? r[2] : null].filter(Boolean);
+    var portadasOL = r[2] ? r[2].portadas : [];
+    if (!fuentes.length) return { encontrado: false, portadas: portadasOL };
+    var datos = { encontrado: true, fuentes: [], clc: r[0] ? r[0].clc : null };
+    CAMPOS_ISBN.forEach(function (k) {
+      var f = fuentes.find(function (x) { return x[k]; });
+      datos[k] = f ? f[k] : (k === "paginas" ? 0 : "");
+      if (f && datos.fuentes.indexOf(nombreFuente(f)) === -1) datos.fuentes.push(nombreFuente(f));
+    });
     datos.descripcion = String(datos.descripcion).slice(0, 3000);
-    datos.portadas = (a.portadas || []).concat(o ? o.portadas : []);
-    if (g) datos.fuentes.push("Google Books");
-    if (o && !o.vacio) datos.fuentes.push("Open Library");
+    datos.portadas = fuentes.reduce(function (a, f) { return a.concat(f.portadas || []); }, []).concat(r[2] && r[2].vacio ? portadasOL : []);
+    if (!datos.fuentes.length) datos.fuentes.push(nombreFuente(fuentes[0]));
     return datos;
   });
 }
+function nombreFuente(f) { return f.fuente === "CLC" ? "CLC" : f.fuente; }
 
 // Prueba las portadas en orden y devuelve la primera que se pueda descargar (como Blob).
 // Las imágenes muy pequeñas (menos de 150 px de ancho) solo se usan si no hay otra mejor.
