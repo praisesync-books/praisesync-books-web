@@ -219,11 +219,16 @@ function entidades(s) {
 }
 function minus(s) { return String(s || "").trim().toLowerCase(); }
 function limpiarTexto(s) { return String(s || "").replace(/\s+/g, " ").trim(); }
-// "10.5 cm x 15.8 cm" → "10,5 x 15,8"
+// Siempre en centímetros: "10.5 cm x 15.8 cm" → "10,5 x 15,8" · "150 x 228 x 25 mm" → "15 x 22,8 x 2,5".
+// Si dice "mm", o los números son demasiado grandes para ser centímetros (más de 60), se dividen entre 10.
 function dimensiones(s) {
-  const nums = String(s || "").match(/\d+(?:[.,]\d+)?/g);
+  const texto = String(s || "");
+  const nums = texto.match(/\d+(?:[.,]\d+)?/g);
   if (!nums || nums.length < 2) return "";
-  return nums.slice(0, 3).map((n) => n.replace(".", ",")).join(" x ");
+  let valores = nums.slice(0, 3).map((n) => parseFloat(n.replace(",", ".")));
+  const enMm = /mm|mil[ií]metro/i.test(texto) || (!/cm|cent[ií]metro/i.test(texto) && Math.max(...valores) > 60);
+  if (enMm) valores = valores.map((v) => v / 10);
+  return valores.map((v) => String(Math.round(v * 10) / 10).replace(".", ",")).join(" x ");
 }
 
 export function normalizarISBN(valor) {
