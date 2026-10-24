@@ -4,7 +4,7 @@ import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, runTransaction,
   serverTimestamp, deleteField, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { formatoPrecio, aNumero, sinTildes, escapar, enlaceWhatsApp, codigoPedido, leerCSV, portadaVaciaHTML, enlaceLibro, hoyISO, vigente, fechaCorta, precioEfectivo } from "../util.js";
+import { formatoPrecio, aNumero, sinTildes, escapar, enlaceWhatsApp, codigoPedido, leerCSV, portadaVaciaHTML, enlaceLibro, hoyISO, vigente, fechaCorta, precioEfectivo, textoInfoHTML } from "../util.js";
 
 var auth = getAuth(app);
 var $ = function (id) { return document.getElementById(id); };
@@ -16,7 +16,7 @@ var anuncio = { activo: false, texto: "", hasta: "" };
 var ultimoRespaldo = "";
 var bannerAltura = "baja"; // "baja" (como la franja azul), "media" o "alta"
 function datosAjustes() {
-  return { secciones: ajustes, campanas: campanas, anuncio: anuncio, ultimoRespaldo: ultimoRespaldo, banners: banners, bannerAltura: bannerAltura };
+  return { secciones: ajustes, campanas: campanas, anuncio: anuncio, ultimoRespaldo: ultimoRespaldo, banners: banners, bannerAltura: bannerAltura, paginas: paginasInfo };
 }
 var banners = [];          // [{id, titulo, subtitulo, boton, destinoTipo, destino, desde, hasta, activo, cel}]   // fecha ISO del último respaldo descargado
 // Guarda todo el documento de ajustes de la tienda (secciones, campañas y anuncio) de una vez.
@@ -154,6 +154,7 @@ function cargarAjustes() {
     ultimoRespaldo = datos.ultimoRespaldo || "";
     banners = Array.isArray(datos.banners) ? datos.banners : [];
     bannerAltura = datos.bannerAltura || "baja";
+    paginasInfo = unirPaginasInfo(datos.paginas);
   });
 }
 function cargarTodo() {
@@ -207,6 +208,7 @@ function armarCatalogo() {
     anuncio: (anuncio.activo && anuncio.texto && vigente(anuncio.hasta)) ? anuncio : null,
     banners: banners.filter(function (b) { return b.activo !== false && vigente(b.hasta); }),
     bannerAltura: bannerAltura,
+    paginas: paginasInfo.filter(function (p) { return p.activo && p.titulo && p.texto; }).map(function (p) { return { id: p.id, titulo: p.titulo, texto: p.texto }; }),
     subcategorias: categorias.reduce(function (m, c) { if (subsDe(c).length) m[c.nombre] = subsDe(c); return m; }, {}),
     actualizado: serverTimestamp()
   };
@@ -233,7 +235,7 @@ function revisarCatalogo() {
     if (!s.exists()) return publicarCatalogo();
     // El ranking de "Más vendidos" cambia con el tiempo (ventana de 90 días): se actualiza al entrar.
     var d = s.data();
-    if (JSON.stringify(d.vendidos || {}) !== JSON.stringify(calcularVendidos()) || !d.secciones || !("campanas" in d) || !("banners" in d) || !("bannerAltura" in d)) return publicarCatalogo();
+    if (JSON.stringify(d.vendidos || {}) !== JSON.stringify(calcularVendidos()) || !d.secciones || !("campanas" in d) || !("banners" in d) || !("bannerAltura" in d) || !("paginas" in d)) return publicarCatalogo();
   });
 }
 
@@ -313,7 +315,7 @@ function migrarFotos() {
 }
 
 // ---------- Pestañas ----------
-var PESTANAS = ["resumen", "pedidos", "libros", "categorias", "inicio", "ofertas", "banners", "respaldo"];
+var PESTANAS = ["resumen", "pedidos", "libros", "categorias", "inicio", "ofertas", "banners", "info", "respaldo"];
 function pestanaActual() {
   var h = location.hash.replace("#", "");
   return PESTANAS.indexOf(h) !== -1 ? h : "resumen";
@@ -342,6 +344,7 @@ function pintarTodo() {
   if (p === "ofertas") pintarOfertas();
   if (p === "respaldo") pintarRespaldo();
   if (p === "banners") pintarBannersPanel();
+  if (p === "info") pintarInfo();
 }
 
 // ---------- Resumen ----------
@@ -1473,7 +1476,7 @@ function respaldoCompleto(conFotos) {
       var datos = {
         tipo: "respaldo-praisesync-books-web", version: 1, fecha: new Date().toISOString(), tienda: (window.TIENDA || {}).nombre || "",
         libros: aISO(libros), categorias: aISO(categorias),
-        ajustes: { secciones: ajustes, campanas: campanas, anuncio: anuncio, banners: banners },
+        ajustes: { secciones: ajustes, campanas: campanas, anuncio: anuncio, banners: banners, bannerAltura: bannerAltura, paginas: paginasInfo },
         pedidos: aISO(r[0])
       };
       if (conFotos) { datos.portadas = r[1]; datos.interiores = r[2]; }
@@ -1722,4 +1725,128 @@ $("altura-banners").addEventListener("change", function (e) {
   pintarAltura();
   guardarDocAjustes().then(publicarCatalogo).then(function () { avisar("Altura de los banners: " + ALTURAS[bannerAltura].nombre); })
     .catch(function (err) { bannerAltura = antes; pintarAltura(); avisar(mensajeError(err), true); });
+});
+
+
+// ---------- Información de la tienda (Quiénes somos, envíos, pagos…) ----------
+// Se guardan en tienda/ajustes y se publican con el catálogo (solo las que tienen "Mostrar en la tienda").
+var LARGO_INFO = 4000;
+var PAGINAS_BASE = [
+  { id: "quienes", titulo: "Quiénes somos", texto:
+"Somos **PraiseSync Books Web**, una tienda de Biblias y libros cristianos atendida directamente por nosotros desde [tu ciudad], Colombia.\n\n" +
+"Creemos que un buen libro puede acompañar, enseñar y fortalecer la fe. Por eso escogemos cada título con cuidado: Biblias de estudio, devocionales, libros para la familia, para los niños y para el crecimiento espiritual.\n\n" +
+"## Cómo te atendemos\n" +
+"- Atención personal por WhatsApp: [lunes a sábado, de 8:00 a.m. a 6:00 p.m.]\n" +
+"- Te ayudamos a elegir la Biblia o el libro indicado para ti o para regalar.\n" +
+"- Coordinamos contigo el pago y la entrega, sin intermediarios.\n\n" +
+"Gracias por confiar en nosotros. Será un gusto atenderte." },
+  { id: "envios", titulo: "Envíos y entregas", texto:
+"## Entregas en [tu ciudad]\n" +
+"- Entrega a domicilio en [barrios o zonas]. Costo: [valor, o gratis desde cierto monto].\n" +
+"- También puedes recoger tu pedido en [punto de entrega], con cita previa.\n\n" +
+"## Envíos al resto de Colombia\n" +
+"- Enviamos a todo el país por [transportadora].\n" +
+"- El valor del envío depende de la ciudad y del peso del pedido. Te lo confirmamos por WhatsApp antes de pagar.\n" +
+"- Tiempo de entrega: [2 a 5] días hábiles después de confirmado el pago.\n\n" +
+"Cuando despachamos tu pedido te enviamos el número de guía para que puedas seguirlo." },
+  { id: "pagos", titulo: "Formas de pago", texto:
+"Coordinamos el pago contigo por WhatsApp. Aceptamos:\n\n" +
+"- **Transferencia** o consignación a [banco].\n" +
+"- **Nequi** o **Daviplata**.\n" +
+"- **Efectivo** contra entrega, solo en [tu ciudad].\n\n" +
+"## Paso a paso\n" +
+"- Arma tu pedido en la tienda y envíalo por WhatsApp.\n" +
+"- Te confirmamos la disponibilidad, el valor del envío y el total.\n" +
+"- Haces el pago y nos envías el comprobante.\n" +
+"- Despachamos tu pedido.\n\n" +
+"**Importante:** nunca te pediremos claves ni códigos de tu banco." },
+  { id: "cambios", titulo: "Cambios y devoluciones", texto:
+"Queremos que quedes feliz con tu compra.\n\n" +
+"- Si tu libro llega con un defecto de fábrica o dañado en el envío, avísanos dentro de los [5] días siguientes a recibirlo y lo cambiamos sin costo.\n" +
+"- Si te equivocaste de título, puedes cambiarlo dentro de los [5] días siguientes, siempre que esté nuevo, sin uso y en su empaque original. El envío del cambio corre por tu cuenta.\n" +
+"- Para cualquier cambio, escríbenos por WhatsApp con tu número de pedido y una foto del producto.\n\n" +
+"Los libros en oferta [sí / no] tienen cambio.\n\n" +
+"Esta política no limita tus derechos como consumidor según la ley colombiana (Estatuto del Consumidor, Ley 1480 de 2011)." },
+  { id: "contacto", titulo: "Contacto", texto:
+"¿Tienes una pregunta sobre un libro, un pedido o un envío? Escríbenos, con gusto te ayudamos.\n\n" +
+"- **WhatsApp:** 313 209 2326\n" +
+"- **Horario:** [lunes a sábado, 8:00 a.m. a 6:00 p.m.]\n" +
+"- **Ciudad:** [tu ciudad], Colombia\n" +
+"- **Correo:** [tu correo]" }
+];
+var paginasInfo = unirPaginasInfo(null);
+// Lo guardado manda; las páginas que todavía no se han guardado traen su borrador (ocultas).
+function unirPaginasInfo(guardadas) {
+  var g = Array.isArray(guardadas) ? guardadas : [];
+  return PAGINAS_BASE.map(function (b) {
+    var x = g.find(function (p) { return p && p.id === b.id; });
+    return x ? { id: b.id, titulo: x.titulo || b.titulo, texto: typeof x.texto === "string" ? x.texto : b.texto, activo: !!x.activo }
+             : { id: b.id, titulo: b.titulo, texto: b.texto, activo: false };
+  });
+}
+function pendientesInfo(t) { return (String(t).match(/\[[^\]\n]{1,60}\]/g) || []).length; }
+function pintarInfo() {
+  $("lista-info").innerHTML = paginasInfo.map(function (p) {
+    var falta = pendientesInfo(p.texto);
+    return '<form class="bloque form-info" data-info="' + p.id + '">' +
+      '<div class="form-info__cabeza"><h2>' + escapar(p.titulo) + "</h2>" +
+        '<span class="estado-campana estado-campana--' + (p.activo ? "activa" : "pausada") + '">' + (p.activo ? "Visible en la tienda" : "Oculta") + "</span></div>" +
+      '<label class="campo"><span>Título del enlace</span><input name="titulo" maxlength="40" required value="' + escapar(p.titulo) + '"></label>' +
+      '<label class="campo"><span>Texto <small data-contador>' + p.texto.length + " / " + LARGO_INFO + "</small></span>" +
+        '<textarea name="texto" rows="10" maxlength="' + LARGO_INFO + '">' + escapar(p.texto) + "</textarea></label>" +
+      '<p class="aviso-corchetes" data-corchetes' + (falta ? "" : " hidden") + ">Faltan " + falta + " dato" + (falta === 1 ? "" : "s") + " por completar entre [corchetes].</p>" +
+      '<div class="vista-info" data-vista hidden></div>' +
+      '<div class="form-info__pie">' +
+        '<label class="interruptor"><input type="checkbox" name="activo"' + (p.activo ? " checked" : "") + "> <span>Mostrar en la tienda</span></label>" +
+        '<span class="espaciador"></span>' +
+        (p.id !== "contacto" ? "" : '<small class="ayuda">La tienda agrega aquí un botón de WhatsApp.</small>') +
+        '<button type="button" class="boton boton--contorno" data-ver-info>Vista previa</button>' +
+        '<button type="button" class="boton boton--texto" data-borrador-info title="Vuelve a poner el texto de ejemplo">Restaurar borrador</button>' +
+        '<button type="submit" class="boton boton--acento">Guardar</button>' +
+      "</div></form>";
+  }).join("");
+}
+$("lista-info").addEventListener("input", function (e) {
+  var f = e.target.closest("form");
+  if (!f || e.target.name !== "texto") return;
+  var t = e.target.value, falta = pendientesInfo(t);
+  f.querySelector("[data-contador]").textContent = t.length + " / " + LARGO_INFO;
+  var $c = f.querySelector("[data-corchetes]");
+  $c.hidden = !falta;
+  $c.textContent = "Faltan " + falta + " dato" + (falta === 1 ? "" : "s") + " por completar entre [corchetes].";
+  var $v = f.querySelector("[data-vista]");
+  if (!$v.hidden) $v.innerHTML = vistaInfoHTML(f);
+});
+function vistaInfoHTML(f) {
+  return '<span class="anuncio-vista__etiqueta">Así se verá en la tienda:</span><div class="vista-info__hoja"><h3 class="vista-info__titulo">' +
+    escapar(f.titulo.value.trim()) + "</h3>" + textoInfoHTML(f.texto.value) + "</div>";
+}
+$("lista-info").addEventListener("click", function (e) {
+  var f = e.target.closest("form");
+  if (!f) return;
+  if (e.target.closest("[data-ver-info]")) {
+    var $v = f.querySelector("[data-vista]");
+    $v.hidden = !$v.hidden;
+    if (!$v.hidden) $v.innerHTML = vistaInfoHTML(f);
+    e.target.closest("[data-ver-info]").textContent = $v.hidden ? "Vista previa" : "Ocultar vista previa";
+  }
+  if (e.target.closest("[data-borrador-info]")) {
+    var base = PAGINAS_BASE.find(function (b) { return b.id === f.dataset.info; });
+    if (!confirm("¿Reemplazar el texto por el borrador de ejemplo? Lo que escribiste se pierde si no lo has guardado.")) return;
+    f.titulo.value = base.titulo; f.texto.value = base.texto;
+    f.texto.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+});
+$("lista-info").addEventListener("submit", function (e) {
+  e.preventDefault();
+  var f = e.target, id = f.dataset.info, antes = JSON.stringify(paginasInfo);
+  var titulo = f.titulo.value.trim().slice(0, 40), texto = f.texto.value.trim().slice(0, LARGO_INFO), activo = f.activo.checked;
+  if (!titulo) { avisar("Escribe el título", true); return; }
+  if (activo && !texto) { avisar("Escribe el texto antes de mostrarla en la tienda", true); return; }
+  if (activo && pendientesInfo(texto) && !confirm("Todavía hay datos entre [corchetes] sin completar. ¿Mostrarla así en la tienda?")) return;
+  paginasInfo = paginasInfo.map(function (p) { return p.id === id ? { id: id, titulo: titulo, texto: texto, activo: activo } : p; });
+  var b = f.querySelector("[type=submit]"); b.disabled = true;
+  guardarDocAjustes().then(publicarCatalogo).then(function () { pintarInfo(); avisar(activo ? "\"" + titulo + "\" publicada en la tienda" : "\"" + titulo + "\" guardada (oculta)"); })
+    .catch(function (err) { paginasInfo = JSON.parse(antes); avisar(mensajeError(err), true); })
+    .finally(function () { b.disabled = false; });
 });

@@ -282,3 +282,23 @@ label.boton { cursor: pointer; }
 .vista-banner--baja .vista-banner__titulo { font-size: clamp(.75rem, 1.8vw, 1rem); padding: 3px 8px; }
 .vista-banner--baja .vista-banner__subtitulo { font-size: .7rem; }
 .vista-banner--baja .vista-banner__boton { font-size: .68rem; padding: 3px 10px; margin-top: 2px; }
+
+/* Información de la tienda */
+#lista-info { display: flex; flex-direction: column; gap: 16px; }
+.form-info { display: flex; flex-direction: column; gap: 12px; }
+.form-info__cabeza { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.form-info__cabeza h2 { margin: 0; }
+.form-info textarea { resize: vertical; min-height: 200px; line-height: 1.55; font: inherit; }
+.form-info__pie { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.form-info__pie .ayuda { margin: 0; }
+.aviso-corchetes { margin: 0; font-size: .85rem; color: #8a5a00; background: #fdf0d5; padding: 8px 12px; border-radius: 8px; }
+.formato-ayuda { background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 12px 16px; font-size: .9rem; }
+.formato-ayuda summary { cursor: pointer; font-weight: 600; }
+.formato-ayuda ul { margin: 10px 0 0; padding-left: 20px; line-height: 1.7; }
+.formato-ayuda code { background: #f1ede8; padding: 1px 5px; border-radius: 4px; }
+.vista-info__hoja { margin-top: 6px; border: 1px solid var(--borde); border-radius: 12px; padding: 18px 20px; background: #fff; line-height: 1.6; color: #2a2622; }
+.vista-info__hoja h3 { font-size: 1rem; margin: 16px 0 6px; color: #0a1f5c; }
+.vista-info__hoja .vista-info__titulo { font-size: 1.3rem; margin-top: 0; }
+.vista-info__hoja p { margin: 0 0 10px; }
+.vista-info__hoja ul { margin: 0 0 10px; padding-left: 20px; }
+@media (max-width: 640px) { .form-info__pie .boton { flex: 1 1 auto; } }
