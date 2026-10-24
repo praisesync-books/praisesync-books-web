@@ -18,7 +18,7 @@ window.TIENDA = {
   // Dirección del buscador de libros en CLC Colombia (Cloudflare Workers), para
   // autocompletar por ISBN desde CLC. Déjalo vacío ("") para usar solo Google Books.
   // Ver buscador-clc/GUIA.md
-  buscadorCLC: "",
+    buscadorCLC: "https://praisesync-clc.leonar92005.workers.dev",
 
   // Datos de Firebase: pega aquí el bloque firebaseConfig de tu proyecto.
   // (No son secretos; la seguridad la ponen las reglas de Firestore.)
