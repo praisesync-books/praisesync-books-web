@@ -342,11 +342,17 @@
           <div class="interiores__fila" id="lista-interiores"></div>
           <input type="file" id="input-interior" accept="image/*" multiple hidden>
         </div>
+        <div class="campo"><label for="campo-isbn">ISBN <small>(escríbelo y toca Autocompletar para llenar los datos solo)</small></label>
+          <div class="isbn-fila">
+            <input id="campo-isbn" name="isbn" maxlength="40" inputmode="numeric" placeholder="978…" autocomplete="off">
+            <button class="boton boton--contorno" type="button" id="autocompletar" title="Busca el libro por ISBN y llena los datos">🔎 Autocompletar</button>
+          </div>
+        </div>
+        <p class="estado-isbn" id="estado-isbn" hidden></p>
         <label class="campo"><span>Nombre *</span><input name="nombre" required maxlength="120"></label>
-        <label class="campo"><span>Autor</span><input name="autor" maxlength="80"></label>
         <div class="dos-campos">
+          <label class="campo"><span>Autor</span><input name="autor" maxlength="80"></label>
           <label class="campo"><span>Editorial</span><input name="editorial" maxlength="80" list="lista-editoriales" autocomplete="off"></label>
-          <label class="campo"><span>ISBN</span><input name="isbn" maxlength="40" inputmode="numeric" placeholder="978…" autocomplete="off"></label>
         </div>
         <datalist id="lista-editoriales"></datalist>
         <div class="dos-campos">

@@ -5,6 +5,7 @@ import {
   serverTimestamp, deleteField, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { formatoPrecio, aNumero, sinTildes, escapar, enlaceWhatsApp, codigoPedido, leerCSV, portadaVaciaHTML, enlaceLibro, hoyISO, vigente, fechaCorta, precioEfectivo, textoInfoHTML } from "../util.js";
+import { normalizarISBN, buscarLibroPorISBN, traerPortada } from "./isbn.js";
 
 var auth = getAuth(app);
 var $ = function (id) { return document.getElementById(id); };
@@ -750,6 +751,7 @@ function abrirEditor(id) {
   $("borrar-libro").hidden = !l;
   $("copiar-enlace").hidden = !l || l.activo === false;
   $("error-libro").hidden = true;
+  $("estado-isbn").hidden = true;
   pintarFoto();
   pintarInteriores();
   $modal.showModal();
@@ -757,6 +759,67 @@ function abrirEditor(id) {
 }
 
 $("nuevo-libro").addEventListener("click", function () { abrirEditor(null); });
+
+// ---------- Autocompletar por ISBN (Google Books + Open Library) ----------
+function estadoISBN(html, tipo) {
+  var $e = $("estado-isbn");
+  $e.hidden = !html;
+  $e.className = "estado-isbn" + (tipo ? " estado-isbn--" + tipo : "");
+  $e.innerHTML = html || "";
+}
+function enlaceBuscarPortada(isbn) {
+  return '<a href="https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(isbn + " portada libro") + '" target="_blank" rel="noopener">buscarla en Google Imágenes</a>';
+}
+var buscandoISBN = 0;
+function autocompletarEditor() {
+  var isbn = normalizarISBN($form.isbn.value);
+  if (!isbn) { estadoISBN("Ese ISBN no parece válido. Revisa los números (son 13, normalmente empiezan por 978 o 979).", "mal"); return; }
+  $form.isbn.value = isbn;
+  var turno = ++buscandoISBN, editando = libroEditando, $b = $("autocompletar");
+  $b.disabled = true;
+  estadoISBN("Buscando el libro…");
+  buscarLibroPorISBN(isbn).then(function (d) {
+    if (turno !== buscandoISBN || editando !== libroEditando || !$modal.open) return;
+    if (!d.encontrado) {
+      estadoISBN("No se encontró este ISBN en Google Books ni en Open Library. Llena los datos a mano" +
+        (fotoEditando ? "." : ", y para la portada puedes " + enlaceBuscarPortada(isbn) + "."), "mal");
+      return;
+    }
+    var campos = [["nombre", "nombre"], ["autor", "autor"], ["editorial", "editorial"], ["paginas", "páginas"], ["descripcion", "descripción"], ["dimensiones", "dimensiones"]];
+    var conDatos = campos.filter(function (c) { return d[c[0]] && String($form[c[0]].value).trim() && String($form[c[0]].value).trim() !== String(d[c[0]]); });
+    var reemplazar = conDatos.length ? confirm("Ya hay datos escritos en: " + conDatos.map(function (c) { return c[1]; }).join(", ") +
+      ".\n\n¿Reemplazarlos con lo encontrado?\n(Cancelar = solo llenar los campos vacíos)") : false;
+    var llenos = [];
+    campos.forEach(function (c) {
+      if (!d[c[0]]) return;
+      if (String($form[c[0]].value).trim() && !reemplazar) return;
+      if (String($form[c[0]].value).trim() === String(d[c[0]])) return;
+      $form[c[0]].value = d[c[0]];
+      llenos.push(c[1]);
+    });
+    ajustarDescripcion();
+    var faltan = campos.filter(function (c) { return !d[c[0]]; }).map(function (c) { return c[1]; });
+    var resumen = function (portada) {
+      var partes = [];
+      if (llenos.length || portada) partes.push("Encontrado en " + d.fuentes.join(" y ") + ". Se llenó: " + llenos.concat(portada ? ["portada"] : []).join(", ") + ".");
+      else partes.push("Encontrado en " + d.fuentes.join(" y ") + ", pero los campos ya tenían esos datos.");
+      if (faltan.length) partes.push("No trae: " + faltan.join(", ") + ".");
+      partes.push("Revisa que todo esté bien y completa precio, stock y categoría.");
+      return partes.join(" ");
+    };
+    if (fotoEditando) { estadoISBN(resumen(false), "ok"); return; }
+    estadoISBN(resumen(false) + " Buscando la portada…", "ok");
+    return traerPortada(d.portadas).then(function (blob) { return blob ? comprimirFoto(blob) : null; }).catch(function () { return null; }).then(function (url) {
+      if (turno !== buscandoISBN || editando !== libroEditando || !$modal.open) return;
+      if (url && !fotoEditando) { fotoEditando = url; pintarFoto(); estadoISBN(resumen(true), "ok"); }
+      else if (!fotoEditando) estadoISBN(resumen(false) + " La portada no se pudo traer: puedes " + enlaceBuscarPortada(isbn) + ".", "ok");
+    });
+  }).catch(function () {
+    if (turno === buscandoISBN) estadoISBN("No se pudo buscar ahora. Revisa la conexión a internet e intenta de nuevo.", "mal");
+  }).finally(function () { if (turno === buscandoISBN) $b.disabled = false; });
+}
+$("autocompletar").addEventListener("click", autocompletarEditor);
+$form.isbn.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); autocompletarEditor(); } });
 
 // La descripción crece mientras se escribe y muestra cuántos caracteres lleva.
 function ajustarDescripcion() {
@@ -836,7 +899,7 @@ $form.addEventListener("submit", function (e) {
     nombre: $form.nombre.value.trim(),
     autor: $form.autor.value.trim(),
     editorial: $form.editorial.value.trim(),
-    isbn: limpiarISBN($form.isbn.value),
+    isbn: normalizarISBN($form.isbn.value) || limpiarISBN($form.isbn.value),
     paginas: aNumero($form.paginas.value) || 0,
     peso: aNumero($form.peso.value) || 0,
     dimensiones: limpiarDimensiones($form.dimensiones.value),
@@ -920,14 +983,88 @@ $("archivo-csv").addEventListener("change", function (e) {
   e.target.value = "";
   if (!archivo) return;
   archivo.text().then(function (texto) {
-    var filas = leerCSV(texto).filter(function (f) { return f.nombre; });
+    var filas = leerCSV(texto).filter(function (f) { return f.nombre || normalizarISBN(f.isbn); });
     if (!filas.length) { avisar("El archivo no tiene libros. Revisa que la primera fila tenga los títulos de columna.", true); return; }
     var existentes = {};
     var porISBN = {};
     libros.forEach(function (l) {
       existentes[sinTildes(l.nombre + "|" + (l.autor || ""))] = l.id;
       if (soloDigitos(l.isbn)) porISBN[soloDigitos(l.isbn)] = l.id;
+      if (normalizarISBN(l.isbn)) porISBN[normalizarISBN(l.isbn)] = l.id;
     });
+    // Filas con ISBN pero sin nombre: si el libro ya existe solo se actualiza lo que traiga el archivo;
+    // si es nuevo, sus datos se buscan por ISBN (Google Books / Open Library).
+    var porBuscar = [];
+    filas.forEach(function (f) {
+      if (f.nombre) return;
+      var isbn = normalizarISBN(f.isbn);
+      f.isbn = isbn;
+      if (porISBN[isbn]) f._parcial = porISBN[isbn]; else porBuscar.push(f);
+    });
+    var preparar = Promise.resolve([]);
+    if (porBuscar.length) {
+      if (!confirm(porBuscar.length + " libro(s) del archivo solo traen ISBN. Se van a buscar sus datos (nombre, autor, editorial, descripción y portada) en internet." +
+        "\nTarda unos segundos por libro.\n\n¿Continuar?")) return;
+      preparar = buscarVarios(porBuscar);
+    }
+    preparar.then(function (noEncontrados) {
+      filas = filas.filter(function (f) { return f.nombre || f._parcial; });
+      if (!filas.length) { avisar("No se encontró ninguno de esos ISBN. Agrega la columna Nombre y vuelve a importar.", true); return; }
+      importarFilas(filas, existentes, porISBN, noEncontrados);
+    });
+  });
+});
+
+// Busca por ISBN varias filas (de a 3 a la vez) y les llena los datos que falten.
+function buscarVarios(lista) {
+  var noEncontrados = [], hechos = 0, i = 0;
+  avisar("Buscando datos: 0 de " + lista.length + "…");
+  function siguiente() {
+    if (i >= lista.length) return Promise.resolve();
+    var f = lista[i++];
+    return buscarLibroPorISBN(f.isbn).catch(function () { return { encontrado: false }; }).then(function (d) {
+      hechos++;
+      avisar("Buscando datos: " + hechos + " de " + lista.length + "…");
+      if (!d.encontrado || !d.nombre) { noEncontrados.push(f.isbn); return; }
+      f.nombre = d.nombre;
+      if (!f.autor) f.autor = d.autor;
+      if (!f.editorial) f.editorial = d.editorial;
+      if (!f.paginas && d.paginas) f.paginas = String(d.paginas);
+      if (!f.descripcion) f.descripcion = d.descripcion;
+      if (!f.dimensiones && d.dimensiones) f.dimensiones = d.dimensiones;
+      f._portadas = d.portadas;
+    }).then(siguiente);
+  }
+  return Promise.all([siguiente(), siguiente(), siguiente()]).then(function () { return noEncontrados; });
+}
+
+// Descarga las portadas de los libros importados que no tenían foto (uno por uno).
+function traerPortadasImportadas(ops) {
+  var lista = ops.filter(function (op) {
+    var l = libros.find(function (x) { return x.id === op.id; });
+    return op.fila && op.fila._portadas && op.fila._portadas.length && l && !l.foto;
+  });
+  if (!lista.length) return Promise.resolve(0);
+  var puestas = 0;
+  return lista.reduce(function (p, op, n) {
+    return p.then(function () {
+      avisar("Trayendo portadas: " + (n + 1) + " de " + lista.length + "…");
+      return traerPortada(op.fila._portadas).then(function (blob) { return blob ? comprimirFoto(blob) : null; }).then(function (url) {
+        if (!url) return;
+        var marca = Date.now(), b = writeBatch(db);
+        b.set(doc(db, "portadas", op.id), { imagen: url });
+        b.update(doc(db, "libros", op.id), { foto: marca });
+        return b.commit().then(function () {
+          var l = libros.find(function (x) { return x.id === op.id; });
+          if (l) l.foto = marca;
+          fotos[op.id] = url; puestas++;
+        });
+      }).catch(function () {});
+    });
+  }, Promise.resolve()).then(function () { return puestas; });
+}
+
+function importarFilas(filas, existentes, porISBN, noEncontrados) {
     var isbnDanados = [];
     var nuevos = 0, actualizados = 0;
     var cats = {};
@@ -950,22 +1087,32 @@ $("archivo-csv").addEventListener("change", function (e) {
       if (f.destacado !== undefined && f.destacado !== "") datos.destacado = /^s/i.test(f.destacado.trim());
       if (f.isbn !== undefined) {
         if (/e\+/i.test(f.isbn)) isbnDanados.push(f.nombre);
-        else datos.isbn = limpiarISBN(f.isbn);
+        else datos.isbn = normalizarISBN(f.isbn) || limpiarISBN(f.isbn);
       }
       if (f.subcategoria !== undefined) datos.subcategoria = datos.categoria ? f.subcategoria : "";
       if (datos.categoria) {
         cats[datos.categoria] = cats[datos.categoria] || {};
         if (datos.subcategoria) cats[datos.categoria][datos.subcategoria] = true;
       }
-      var id = (datos.isbn && porISBN[soloDigitos(datos.isbn)]) || existentes[sinTildes(f.nombre + "|" + (f.autor || ""))];
-      if (id) { actualizados++; return { id: id, datos: datos }; }
+      // Fila con solo ISBN de un libro que ya existe: no se borran los datos que el archivo no trae.
+      if (f._parcial) {
+        ["nombre", "autor", "precio", "stock", "descripcion"].forEach(function (k) {
+          if (f[k] === undefined || String(f[k]).trim() === "") delete datos[k];
+        });
+        if (!datos.categoria) { delete datos.categoria; delete datos.subcategoria; }
+        actualizados++;
+        return { id: f._parcial, datos: datos, fila: f };
+      }
+      var id = (datos.isbn && (porISBN[datos.isbn] || porISBN[soloDigitos(datos.isbn)])) || existentes[sinTildes(f.nombre + "|" + (f.autor || ""))];
+      if (id) { actualizados++; return { id: id, datos: datos, fila: f }; }
       nuevos++;
-      return { id: null, datos: Object.assign({ activo: true, foto: 0, creado: serverTimestamp() }, datos) };
+      return { id: null, datos: Object.assign({ activo: true, foto: 0, creado: serverTimestamp() }, datos), fila: f };
     });
     var msg = "Se van a importar " + filas.length + " libros:\n• " + nuevos + " nuevos\n• " + actualizados +
       " ya existían (se actualizan precio, stock y datos; la foto se conserva)" +
       (isbnDanados.length ? "\n\nOjo: Excel dañó el ISBN de " + isbnDanados.length + " libro(s) (aparece como 9,78E+12). " +
         "Esos ISBN no se importan. En Excel, pon la columna ISBN en formato Texto y vuelve a escribirlos." : "") +
+      (noEncontrados.length ? "\n\nNo se encontraron datos para " + noEncontrados.length + " ISBN (no se importan; agrégalos con su nombre):\n" + noEncontrados.slice(0, 15).join(", ") + (noEncontrados.length > 15 ? "…" : "") : "") +
       "\n\n¿Continuar?";
     if (!confirm(msg)) return;
 
@@ -1007,11 +1154,14 @@ $("archivo-csv").addEventListener("change", function (e) {
         });
         libros.sort(function (a, c) { return String(a.nombre).localeCompare(c.nombre, "es"); });
         pintarTodo();
-        avisar(nuevos + " creados, " + actualizados + " actualizados");
+        return traerPortadasImportadas(operaciones);
+      })
+      .then(function (portadas) {
+        pintarTodo();
+        avisar(nuevos + " creados, " + actualizados + " actualizados" + (portadas ? " · " + portadas + " portadas agregadas" : ""));
         return publicarCatalogo();
       }).catch(function (err) { cargarLibros().then(function () { pintarTodo(); publicarCatalogo(); }); avisar(mensajeError(err), true); });
-  });
-});
+}
 
 // ---------- Categorías ----------
 function subsDe(c) { return (c && Array.isArray(c.subcategorias)) ? c.subcategorias : []; }

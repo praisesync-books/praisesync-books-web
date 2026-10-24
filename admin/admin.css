@@ -302,3 +302,12 @@ label.boton { cursor: pointer; }
 .vista-info__hoja p { margin: 0 0 10px; }
 .vista-info__hoja ul { margin: 0 0 10px; padding-left: 20px; }
 @media (max-width: 640px) { .form-info__pie .boton { flex: 1 1 auto; } }
+
+/* Autocompletar por ISBN */
+.isbn-fila { display: flex; gap: 6px; }
+.isbn-fila input { flex: 1; min-width: 0; }
+.isbn-fila .boton { white-space: nowrap; padding-left: 12px; padding-right: 12px; font-size: .85rem; }
+.estado-isbn { margin: -4px 0 0; font-size: .85rem; padding: 9px 12px; border-radius: 8px; background: #e8effc; color: #1d3f86; line-height: 1.45; }
+.estado-isbn--ok { background: #dcefe3; color: #17643a; }
+.estado-isbn--mal { background: #fdf0d5; color: #8a5a00; }
+.estado-isbn a { color: inherit; font-weight: 600; }
