@@ -53,6 +53,12 @@ Ojo con el ISBN en Excel: antes de escribirlo, pon esa columna en formato **Text
 Si un libro ya existe (mismo ISBN, o mismo nombre y autor), se actualiza en vez de duplicarse. Las categorías y subcategorías nuevas se crean solas.
 Las fotos se agregan después, editando cada libro.
 
+### Autocompletar por ISBN
+- **Un libro:** en el editor escribe el ISBN y toca **🔎 Autocompletar** (o Enter). Se llenan nombre, autor, editorial, páginas, descripción y portada desde Google Books y Open Library (gratis). Si ya había datos escritos, pregunta antes de reemplazarlos.
+- **Muchos libros:** usa `plantilla-solo-isbn.csv` (columnas **ISBN, Categoría, Precio, Stock**) e impórtala en **Libros → Importar CSV**. Los ISBN que no estén en la tienda se buscan en internet y se crean con sus datos y portada; los que ya existen solo actualizan precio, stock y categoría.
+- Acepta ISBN con guiones, de 10 dígitos o de 14 dígitos con un 0 adelante (como vienen en algunos inventarios).
+- Con libros en español a veces faltan la descripción o la portada: revisa cada libro y completa lo que falte.
+
 ## Compartir libros
 
 - Cada libro tiene su propio enlace (ej. `…/?libro=biblia-devocional-macarthur-Qx7pK2`). Al abrirlo, la tienda muestra directamente ese libro.
