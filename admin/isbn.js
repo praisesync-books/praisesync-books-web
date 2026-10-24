@@ -109,7 +109,7 @@ function desdeCLC(isbn) {
       return {
         fuente: "CLC", nombre: d.nombre || "", autor: d.autor || "", editorial: d.editorial || "", paginas: d.paginas || 0,
         descripcion: d.descripcion || "", dimensiones: d.dimensiones || "", cubierta: d.cubierta || "",
-        portadas: d.portada ? [d.portada] : [],
+        portadas: Array.isArray(d.portadas) && d.portadas.length ? d.portadas : (d.portada ? [d.portada] : []),
         clc: { precio: d.precio || 0, disponible: !!d.disponible, unidades: d.unidades, url: d.url || "" }
       };
     })

@@ -77,6 +77,7 @@ Te llega un mensaje a Telegram con cada pedido nuevo, al instante. Se activa sig
 
 - Las fotos del interior se guardan con más resolución (para que se lea la letra) y solo se descargan cuando el cliente abre la ficha del libro.
 - Las fotos se reducen automáticamente y se guardan en la base de datos (no hace falta Firebase Storage).
+- Cada portada se guarda en dos tamaños: una pequeña (640 px) para el catálogo y una grande (1200 px) que solo se descarga al abrir la ficha, para que el zoom se vea nítido. Las portadas subidas antes de este cambio solo tienen la pequeña: vuelve a subirlas (o usa Autocompletar) para tener la grande.
 - El precio que el cliente ve en WhatsApp es el del catálogo en ese momento; confírmalo siempre en el chat antes de cobrar.
 - Para cambiar el número de WhatsApp, el nombre de la tienda o el mensaje del botón flotante de WhatsApp: `config.js`.
 - **Dominio propio:** compra el dominio, configura su DNS para GitHub Pages, escríbelo en Settings → Pages → Custom domain,

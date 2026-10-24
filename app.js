@@ -279,10 +279,12 @@ var TITULO_BASE = document.title;
 var BASE_TIENDA = location.href.replace(/[?#].*$/, "");
 // ---------- Galería de la ficha: portada + fotos del interior ----------
 var fotosInteriores = {};   // "idLibro_n" -> dataURL
+var fotosGrandes = {}, pidiendoGrande = {};   // portada en alta resolución (solo se pide al abrir la ficha)
 var galeriaIndice = 0, galeriaLibro = null;
 function galeriaHTML(l, agotado) {
   var n = l.interiores || 0;
-  var slides = ['<div class="galeria__slide galeria__slide--portada">' + fotoHTML(l, l.nombre) + "</div>"];
+  var slides = ['<div class="galeria__slide galeria__slide--portada">' + (fotosGrandes[l.id] ? '<img src="' + escapar(fotosGrandes[l.id]) + '" alt="' + escapar(l.nombre) + '">' : fotoHTML(l, l.nombre)) + "</div>"];
+  var ampliable = n || l.foto || l.imagen;
   for (var k = 1; k <= n; k++) {
     var clave = l.id + "_" + k, url = fotosInteriores[clave];
     slides.push('<div class="galeria__slide galeria__slide--interior" data-interior="' + clave + '">' +
@@ -292,8 +294,8 @@ function galeriaHTML(l, agotado) {
     '<div class="galeria__pista">' + slides.join("") + "</div>" +
     (agotado ? '<span class="etiqueta">Agotado</span>' : "") +
     (n ? '<button type="button" class="galeria__flecha galeria__flecha--izq" data-galeria="-1" aria-label="Foto anterior">‹</button>' +
-         '<button type="button" class="galeria__flecha galeria__flecha--der" data-galeria="1" aria-label="Foto siguiente">›</button>' +
-         '<button type="button" class="galeria__ampliar" data-ampliar aria-label="Ver foto en grande">' +
+         '<button type="button" class="galeria__flecha galeria__flecha--der" data-galeria="1" aria-label="Foto siguiente">›</button>' : "") +
+    (ampliable ? '<button type="button" class="galeria__ampliar" data-ampliar aria-label="Ver foto en grande">' +
            '<svg class="icono-ampliar" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.6-4.6M10.5 7.8v5.4M7.8 10.5h5.4"/></svg>' +
            '<svg class="icono-cerrar" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>' +
          "</button>" : "") +
@@ -321,8 +323,24 @@ function prepararGaleria(l) {
     var i = Math.round(pista.scrollLeft / Math.max(1, pista.clientWidth));
     if (i !== galeriaIndice) { galeriaIndice = i; marcarMiniatura(); }
   }, { passive: true });
-  // Las fotos del interior se descargan solo al abrir la ficha.
+  // Las fotos del interior y la portada grande se descargan solo al abrir la ficha.
   for (var k = 1; k <= (l.interiores || 0); k++) cargarInterior(l, l.id + "_" + k);
+  cargarPortadaGrande(l);
+}
+function cargarPortadaGrande(l) {
+  if (!l.fotoGrande || fotosGrandes[l.id] || pidiendoGrande[l.id]) return;
+  pidiendoGrande[l.id] = true;
+  getDoc(doc(db, "portadas", l.id + "_grande")).then(function (s) {
+    if (!s.exists() || !s.data().imagen) return;
+    var url = s.data().imagen, img = new Image();
+    img.onload = function () {   // se cambia cuando ya está descargada, para que no parpadee
+      fotosGrandes[l.id] = url;
+      document.querySelectorAll("#detalle-contenido .galeria__slide--portada").forEach(function (el) {
+        if (libroEnDetalle === l.id) el.innerHTML = '<img src="' + escapar(url) + '" alt="' + escapar(l.nombre) + '">';
+      });
+    };
+    img.src = url;
+  }).catch(function () {}).finally(function () { delete pidiendoGrande[l.id]; });
 }
 function cargarInterior(l, clave) {
   if (fotosInteriores[clave]) return;
@@ -751,7 +769,7 @@ function normalizar(x, id) {
     precio: typeof x.precio === "number" ? x.precio : null,
     stock: typeof x.stock === "number" ? x.stock : 0,
     descripcion: x.resumen !== undefined ? x.resumen : (x.descripcion || ""),
-    larga: !!x.larga, foto: x.foto || 0, destacado: !!x.destacado, precioOferta: x.precioOferta || 0, ofertaHasta: x.ofertaHasta || "", interiores: x.interiores || 0, creado: typeof x.creado === "number" ? x.creado : (x.creado && x.creado.toMillis ? x.creado.toMillis() : 0), imagen: x.imagen || ""
+    larga: !!x.larga, foto: x.foto || 0, fotoGrande: x.fotoGrande || 0, destacado: !!x.destacado, precioOferta: x.precioOferta || 0, ofertaHasta: x.ofertaHasta || "", interiores: x.interiores || 0, creado: typeof x.creado === "number" ? x.creado : (x.creado && x.creado.toMillis ? x.creado.toMillis() : 0), imagen: x.imagen || ""
   };
 }
 

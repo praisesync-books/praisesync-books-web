@@ -49,7 +49,10 @@ export default {
     } catch (e) {
       return responder({ encontrado: false, error: "No se pudo consultar CLC: " + (e && e.message || e) }, 502, cors);
     }
-    if (datos.encontrado && datos.portada) datos.portada = url.origin + "/imagen?u=" + encodeURIComponent(datos.portada);
+    if (datos.encontrado) {
+      datos.portadas = (datos.portadas || []).map((p) => url.origin + "/imagen?u=" + encodeURIComponent(p));
+      datos.portada = datos.portadas[0] || "";
+    }
     const resp = responder(datos, 200, cors);
     ctx.waitUntil(cache.put(claveCache, new Response(JSON.stringify(datos), {
       headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "max-age=" + (datos.encontrado ? HORAS_CACHE * 3600 : 3600) }
@@ -143,7 +146,7 @@ export function leerFicha(html, direccion) {
     dimensiones: dimensiones(ficha["dimensiones"] || ""),
     idioma: limpiarTexto(sistema["idioma"] || ficha["idioma"] || ""),
     descripcion: panel.resena.slice(0, 3000),
-    portada: grande((Array.isArray(ld.image) ? ld.image[0] : ld.image) || metaOG(html, "og:image") || ""),
+    portadas: versionesPortada((Array.isArray(ld.image) ? ld.image[0] : ld.image) || metaOG(html, "og:image") || ""),
     precio: Math.round(parseFloat(oferta.price) || 0),
     disponible: /InStock|LimitedAvailability|PreOrder/i.test(disponibilidad),
     unidades: unidades,
@@ -161,7 +164,13 @@ function metaOG(html, prop) {
   const m = html.match(new RegExp('<meta[^>]+property="' + prop + '"[^>]+content="([^"]*)"', "i"));
   return m ? entidades(m[1]) : "";
 }
-function grande(u) { return u ? String(u).replace(/\/images\/products\/(medium|small|thumb)\//, "/images/products/large/") : ""; }
+// CLC guarda cada portada en varios tamaños: se prueba primero la original (la más grande) y luego la "large".
+function versionesPortada(u) {
+  if (!u) return [];
+  const m = String(u).match(/^(.*\/images\/products\/)[a-z]+(\/.+)$/i);
+  if (!m) return [u];
+  return [m[1] + "original" + m[2], m[1] + "large" + m[2]];
+}
 
 // "<strong>Cubierta</strong>: Rústica<br />" dentro de .system-properties
 function propiedades(html) {

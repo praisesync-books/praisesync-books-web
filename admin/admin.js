@@ -26,7 +26,8 @@ function guardarDocAjustes() {
 }
 var filtroPedidos = "pendiente";
 var libroEditando = null;   // id o null
-var fotoEditando = "";      // dataURL
+var fotoEditando = "";      // dataURL (portada pequeña, para las tarjetas)
+var fotoGrandeEditando = ""; // dataURL (portada grande, para el zoom de la ficha); "" = no cambió o no hay
 
 var MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
@@ -197,7 +198,7 @@ function armarCatalogo() {
         subcategoria: l.subcategoria || "", editorial: l.editorial || "", isbn: l.isbn || "",
         paginas: l.paginas || 0, peso: l.peso || 0, dimensiones: l.dimensiones || "", cubierta: l.cubierta || "",
         precio: typeof l.precio === "number" ? l.precio : 0, stock: l.stock || 0,
-        resumen: resumenDe(d), larga: d.length > LARGO_RESUMEN, foto: l.foto || 0,
+        resumen: resumenDe(d), larga: d.length > LARGO_RESUMEN, foto: l.foto || 0, fotoGrande: l.foto ? (l.fotoGrande || 0) : 0,
         destacado: !!l.destacado, interiores: l.interiores || 0,
         precioOferta: (l.precioOferta > 0 && vigente(l.ofertaHasta)) ? l.precioOferta : 0, ofertaHasta: l.ofertaHasta || "", creado: msDe(l.creado) || l.creadoMs || 0
       };
@@ -719,7 +720,7 @@ function abrirEditor(id) {
       }).catch(function () { cargandoInteriores = false; pintarInteriores(); avisar("No se pudieron cargar las fotos del interior", true); });
     }
   }
-  fotoEditando = fotoOriginal = "";
+  fotoEditando = fotoOriginal = ""; fotoGrandeEditando = "";
   if (l && l.foto) {
     if (fotos[l.id] !== undefined) fotoEditando = fotoOriginal = fotos[l.id];
     else cargarFoto(l.id).then(function (url) {
@@ -812,10 +813,10 @@ function autocompletarEditor() {
     };
     if (fotoEditando) { estadoISBN(resumen(false), "ok"); return; }
     estadoISBN(resumen(false) + " Buscando la portada…", "ok");
-    return traerPortada(d.portadas).then(function (blob) { return blob ? comprimirFoto(blob) : null; }).catch(function () { return null; }).then(function (url) {
+    return traerPortada(d.portadas).then(function (blob) { return blob ? portadaDoble(blob) : null; }).catch(function () { return null; }).then(function (p) {
       if (turno !== buscandoISBN || editando !== libroEditando || !$modal.open) return;
-      if (url && !fotoEditando) { fotoEditando = url; pintarFoto(); estadoISBN(resumen(true), "ok"); }
-      else if (!fotoEditando) estadoISBN(resumen(false) + " La portada no se pudo traer: puedes " + enlaceBuscarPortada(isbn) + ".", "ok");
+      if (p && !fotoEditando) { fotoEditando = p.chica; fotoGrandeEditando = p.grande; pintarFoto(); estadoISBN(resumen(true), "ok"); }
+      else if (!fotoEditando && !p) estadoISBN(resumen(false) + " La portada no se pudo traer: puedes " + enlaceBuscarPortada(isbn) + ".", "ok");
     });
   }).catch(function () {
     if (turno === buscandoISBN) estadoISBN("No se pudo buscar ahora. Revisa la conexión a internet e intenta de nuevo.", "mal");
@@ -864,15 +865,31 @@ function comprimirFoto(archivo, lado, maximo) {
   });
 }
 
+// Portada en dos tamaños: la pequeña se ve en el catálogo (carga rápido) y la grande solo
+// se descarga cuando el cliente abre la ficha y hace zoom. La grande solo se guarda si la foto
+// original es más grande que la pequeña.
+var LADO_PORTADA = 640, LADO_PORTADA_GRANDE = 1200;
+function portadaDoble(archivo) {
+  return Promise.all([comprimirFoto(archivo), comprimirFoto(archivo, LADO_PORTADA_GRANDE, 460000), medirArchivo(archivo)])
+    .then(function (r) { return { chica: r[0], grande: r[2] > LADO_PORTADA * 1.15 ? r[1] : "" }; });
+}
+function medirArchivo(archivo) {
+  return new Promise(function (ok) {
+    var u = URL.createObjectURL(archivo), img = new Image();
+    img.onload = function () { ok(Math.max(img.naturalWidth, img.naturalHeight)); URL.revokeObjectURL(u); };
+    img.onerror = function () { ok(0); URL.revokeObjectURL(u); };
+    img.src = u;
+  });
+}
 $("input-foto").addEventListener("change", function (e) {
   var archivo = e.target.files && e.target.files[0];
   if (!archivo) return;
   $("vista-foto").innerHTML = '<p class="estado">Procesando…</p>';
-  comprimirFoto(archivo).then(function (url) { fotoEditando = url; pintarFoto(); })
+  portadaDoble(archivo).then(function (p) { fotoEditando = p.chica; fotoGrandeEditando = p.grande; pintarFoto(); })
     .catch(function () { pintarFoto(); avisar("No se pudo leer esa imagen", true); });
   e.target.value = "";
 });
-$("quitar-foto").addEventListener("click", function () { fotoEditando = ""; pintarFoto(); });
+$("quitar-foto").addEventListener("click", function () { fotoEditando = ""; fotoGrandeEditando = ""; pintarFoto(); });
 
 // Fotos del interior: se guardan con más resolución que la portada para que se pueda leer la letra.
 $("lista-interiores").addEventListener("click", function (e) {
@@ -930,6 +947,7 @@ $form.addEventListener("submit", function (e) {
   var id = ref.id, esNuevo = !libroEditando;
   var local = libros.find(function (x) { return x.id === id; });
   datos.foto = cambioFoto ? (fotoEditando ? Date.now() : 0) : ((local && local.foto) || 0);
+  datos.fotoGrande = cambioFoto ? (fotoEditando && fotoGrandeEditando ? 1 : 0) : ((local && local.fotoGrande) || 0);
   datos.interiores = cambioInteriores ? interioresEditando.length : ((local && local.interiores) || 0);
   var b = writeBatch(db);
   if (esNuevo) b.set(ref, Object.assign({ creado: serverTimestamp() }, datos));
@@ -937,6 +955,8 @@ $form.addEventListener("submit", function (e) {
   if (cambioFoto) {
     if (fotoEditando) b.set(doc(db, "portadas", id), { imagen: fotoEditando });
     else b.delete(doc(db, "portadas", id));
+    if (fotoEditando && fotoGrandeEditando) b.set(doc(db, "portadas", id + "_grande"), { imagen: fotoGrandeEditando });
+    else b.delete(doc(db, "portadas", id + "_grande"));
   }
   if (cambioInteriores) {
     for (var k = 1; k <= MAX_INTERIORES; k++) {
@@ -970,6 +990,7 @@ $("borrar-libro").addEventListener("click", function () {
   var b = writeBatch(db);
   b.delete(doc(db, "libros", id));
   b.delete(doc(db, "portadas", id));
+  b.delete(doc(db, "portadas", id + "_grande"));
   for (var k = 1; k <= MAX_INTERIORES; k++) b.delete(doc(db, "interiores", id + "_" + k));
   b.commit().then(function () {
     libros = libros.filter(function (x) { return x.id !== id; });
@@ -1053,15 +1074,16 @@ function traerPortadasImportadas(ops) {
   return lista.reduce(function (p, op, n) {
     return p.then(function () {
       avisar("Trayendo portadas: " + (n + 1) + " de " + lista.length + "…");
-      return traerPortada(op.fila._portadas).then(function (blob) { return blob ? comprimirFoto(blob) : null; }).then(function (url) {
-        if (!url) return;
+      return traerPortada(op.fila._portadas).then(function (blob) { return blob ? portadaDoble(blob) : null; }).then(function (p) {
+        if (!p) return;
         var marca = Date.now(), b = writeBatch(db);
-        b.set(doc(db, "portadas", op.id), { imagen: url });
-        b.update(doc(db, "libros", op.id), { foto: marca });
+        b.set(doc(db, "portadas", op.id), { imagen: p.chica });
+        if (p.grande) b.set(doc(db, "portadas", op.id + "_grande"), { imagen: p.grande });
+        b.update(doc(db, "libros", op.id), { foto: marca, fotoGrande: p.grande ? 1 : 0 });
         return b.commit().then(function () {
           var l = libros.find(function (x) { return x.id === op.id; });
-          if (l) l.foto = marca;
-          fotos[op.id] = url; puestas++;
+          if (l) { l.foto = marca; l.fotoGrande = p.grande ? 1 : 0; }
+          fotos[op.id] = p.chica; puestas++;
         });
       }).catch(function () {});
     });
